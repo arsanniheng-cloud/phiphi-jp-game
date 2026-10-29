@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<!-- ความปลอดภัย: รันสคริปต์ได้เฉพาะไฟล์ของเกม · เชื่อมต่อได้เฉพาะบริการนัดพบของ PeerJS -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://0.peerjs.com wss://0.peerjs.com; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<title>จป.ซัน แห่งเกาะพีพี</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud">
+  <div class="row">
+    <span class="chip" id="h-date">กำลังโหลด…</span>
+    <span class="chip" id="h-time"></span>
+    <span class="chip" id="h-season"></span>
+    <span class="chip" id="h-guests"></span>
+    <span class="chip" id="h-staff"></span>
+    <span class="chip safe" id="h-safe"></span>
+    <span class="chip net" id="h-net" hidden title="ดูรหัสห้อง"></span>
+  </div>
+  <div class="meters">
+    <div class="meter" id="m-ops"><span>ความพร้อมบริการ</span><i></i><b>0</b></div>
+    <div class="meter" id="m-guest"><span>ความพึงพอใจแขก</span><i></i><b>0</b></div>
+    <div class="meter" id="m-rep"><span>ความน่าเชื่อถือ จป.</span><i></i><b>0</b></div>
+    <div class="meter" id="m-trust"><span>ความไว้ใจของพนักงาน</span><i></i><b>0</b></div>
+  </div>
+</div>
+
+<div id="side">
+  <canvas id="minimap" width="240" height="160" title="แตะแผนที่เพื่อเดินไป"></canvas>
+  <div id="tools">
+    <button data-ui="staff">👥 พนักงาน</button>
+    <button data-ui="log">📋 บันทึก<em id="badge-log"></em></button>
+    <button data-ui="ptw">📝 PTW<em id="badge-ptw"></em></button>
+    <button data-ui="menu">☰ เมนู</button>
+  </div>
+</div>
+
+<div id="feed"></div>
+<div id="prompt"></div>
+<div id="joy"><div id="stick"></div></div>
+<button id="act" aria-label="โต้ตอบ">E</button>
+
+<div id="panel" class="hidden"><div id="card"></div></div>
+<div id="flash"></div>
+<div id="errbox"></div>
+<div id="loading"><div><b>กำลังสร้างเกาะพีพี…</b><span>วาดหน้าผาหินปูน ต้นมะพร้าว และพนักงาน 204 คน</span></div></div>
+<input type="file" id="file-import" accept=".json,application/json" hidden>
+
+<!-- ข้อมูล (ฐานข้อมูลของเกม แยกเป็นไฟล์ตามตาราง) -->
+<script src="data/config.js"></script>
+<script src="data/departments.js"></script>
+<script src="data/locations.js"></script>
+<script src="data/hazard_types.js"></script>
+<script src="data/dialogue.js"></script>
+<script src="data/players.js"></script>
+<script src="data/npcs.js"></script>
+<!-- ภาพ 3 มิติจาก Blender (ถ้าไม่มีไฟล์นี้ เกมจะใช้ภาพที่วาดด้วยโค้ดแทน) -->
+<script src="assets/sprites/manifest.js"></script>
+<!-- โค้ดเกม -->
+<script src="js/db.js"></script>
+<script src="js/art.js"></script>
+<script src="js/world.js"></script>
+<script src="js/sim.js"></script>
+<!-- เล่นออนไลน์ต่างเครื่อง: PeerJS 1.5.5 (MIT, ตรวจ sha512 กับ npm แล้ว) -->
+<script src="vendor/peerjs-1.5.5.min.js"></script>
+<script src="js/net.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

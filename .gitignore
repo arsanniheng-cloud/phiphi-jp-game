@@ -1,0 +1,9 @@
+# หมายเหตุเฉพาะเครื่อง (มีที่อยู่ไฟล์และข้อมูลระบบของเครื่องผู้พัฒนา)
+docs/LOCAL-NOTES.md
+# ไฟล์ชั่วคราว
+*.log
+*.tmp
+__pycache__/
+Thumbs.db
+desktop.ini
+.DS_Store
