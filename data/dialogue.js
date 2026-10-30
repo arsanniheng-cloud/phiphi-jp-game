@@ -37,7 +37,11 @@ GAME_DATA.dialogue = {
     ppe_remind: ['ตอนนี้ผมใส่{detail}ทุกครั้งแล้วนะครับ ไม่ต้องห่วง'],
     ptw_ok: ['ใบอนุญาตงาน{detail}ที่{me}มาตรวจหน้างาน ทำให้ทีมมั่นใจขึ้นครับ'],
     ptw_reject: ['งาน{detail}ที่{me}ไม่อนุมัติ หัวหน้าเลื่อนงานออกไป ผมโดนเร่งอยู่เลย'],
-    seed: ['ผมยังจำได้นะครับ {detail}']
+    seed: ['ผมยังจำได้นะครับ {detail}'],
+    kpo_yes: ['ที่{me}อนุมัติ{detail}ในที่ประชุม คปอ. ทีมเราดีใจกันมากครับ', 'ได้{detail}แล้ว ทำงานสบายใจขึ้นเยอะเลยครับ'],
+    kpo_no: ['เรื่อง{detail}ที่เสนอใน คปอ. ยังไม่ผ่านเลยครับ ไว้รอบหน้านะ{me}'],
+    trained: ['อบรมเรื่อง{detail}ที่{me}สอน ได้ความรู้เยอะเลยครับ', 'เรื่อง{detail}ที่อบรมไป ผมเอาไปบอกต่อในกะแล้วครับ'],
+    missed: ['{me}นัด{detail}ไว้ แต่ไม่ได้จัด พวกเรารอเก้อเลยครับ']
   },
   rumor: {
     coach: '{about}เล่าให้ฟังว่า{me}สอนงานดี ไม่ดุ',
@@ -96,5 +100,9 @@ GAME_DATA.memory_types = {
   ptw_ok:     { event_category: 'safety_inspection', emotional_impact: 10,  importance_level: 2 },
   ptw_reject: { event_category: 'safety_inspection', emotional_impact: -15, importance_level: 2 },
   rumor:      { event_category: 'rumor',             emotional_impact: 0,   importance_level: 1 },
+  kpo_yes:    { event_category: 'meeting',           emotional_impact: 35,  importance_level: 4 },
+  kpo_no:     { event_category: 'meeting',           emotional_impact: -15, importance_level: 3 },
+  trained:    { event_category: 'training',          emotional_impact: 20,  importance_level: 3 },
+  missed:     { event_category: 'meeting',           emotional_impact: -25, importance_level: 3 },
   seed:       { event_category: 'safety_inspection', emotional_impact: 0,   importance_level: 3 }
 };

@@ -10,6 +10,9 @@
 --  3) npc_memories เพิ่มหมวด recognition, training, rumor และเก็บวันในเกม (game_day)
 --  4) safety_incidents ผูกกับ hazard_types/locations และเก็บระดับความรุนแรง
 --  5) ใช้ id จากเกมโดยตรง (ไม่ AUTO_INCREMENT ในตารางหลัก) เพื่อให้ไฟล์ส่งออกจากเกมนำเข้าได้ตรง
+--  6) players เพิ่ม gender และ look_json (หน้าตาที่ผู้เล่นเลือก)
+--  7) เพิ่มตาราง safety_activities: แผนงานประจำวัน ประชุม คปอ. และอบรมพนักงาน
+--     npc_memories เพิ่มหมวด meeting (ความทรงจำเรื่องประชุม คปอ./นัดที่ไม่ได้จัด)
 --
 -- ใช้กับ MySQL 5.7+ / MariaDB 10.3+ (XAMPP)  นำเข้าผ่าน phpMyAdmin > Import
 -- ==============================================================================
@@ -21,7 +24,7 @@ CREATE DATABASE IF NOT EXISTS ehs_resort_island
 USE ehs_resort_island;
 
 SET FOREIGN_KEY_CHECKS = 0;
-DROP TABLE IF EXISTS day_reports, jsa_permitting_logs, safety_incidents, dynamic_tourists,
+DROP TABLE IF EXISTS safety_activities, day_reports, jsa_permitting_logs, safety_incidents, dynamic_tourists,
   tourist_seasons, npc_memories, resort_npcs, hazard_types, buildings, locations, departments, players;
 SET FOREIGN_KEY_CHECKS = 1;
 
@@ -34,6 +37,8 @@ CREATE TABLE players (
     character_name VARCHAR(100) NOT NULL DEFAULT 'จป.ซัน',
     license_no VARCHAR(50) DEFAULT 'JPO-PRO-8899',            -- เลขทะเบียน จป.วิชาชีพ
     current_reputation_score INT DEFAULT 100,                 -- ความน่าเชื่อถือของ จป. (0-100)
+    gender ENUM('M','F') NOT NULL DEFAULT 'M',
+    look_json TEXT NULL,                                      -- หน้าตาที่เลือก {gender, skin, hair, hair_style, vest}
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
@@ -112,7 +117,7 @@ CREATE TABLE npc_memories (
     npc_id INT NOT NULL,
     player_id INT NOT NULL,
     event_category ENUM('safety_inspection','accident','rule_violation','personal_talk','heroic_act',
-                        'punishment','recognition','training','rumor') NOT NULL,
+                        'punishment','recognition','training','rumor','meeting') NOT NULL,
     memory_type VARCHAR(20) NULL,                             -- ประเภทละเอียดในเกม เช่น coach, scold
     memory_text TEXT NOT NULL,
     emotional_impact INT DEFAULT 0,                           -- -100 ถึง +100
@@ -237,6 +242,32 @@ CREATE TABLE day_reports (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (player_id) REFERENCES players(id),
     UNIQUE KEY uq_player_day (player_id, game_day)
+) ENGINE=InnoDB;
+
+-- ------------------------------------------------------------------------------
+-- 10. แผนงานของ จป.: แผนงานประจำวัน / ประชุม คปอ. / อบรมพนักงาน
+-- ------------------------------------------------------------------------------
+CREATE TABLE safety_activities (
+    id INT PRIMARY KEY,
+    activity_type ENUM('daily_focus','kpo_meeting','training') NOT NULL,
+    title VARCHAR(200) NOT NULL,
+    player_id INT NOT NULL,                                   -- จป. ที่นัด/จัด
+    department_id INT NULL,                                   -- แผนกที่อบรม (ประชุม คปอ. = NULL ทุกแผนก)
+    topic_code VARCHAR(20) NULL,                              -- หัวข้ออบรม เช่น FIRE หรือรหัสแผนงาน เช่น PATROL
+    scheduled_day INT NOT NULL,                               -- วันในเกม (0 = วันแรก)
+    scheduled_date DATE NULL,
+    scheduled_time VARCHAR(5) NULL,                           -- HH:MM
+    location_id VARCHAR(40) NULL,
+    status ENUM('planned','due','done','missed','cancelled') NOT NULL DEFAULT 'planned',
+    attendees INT DEFAULT 0,
+    score INT NULL,                                           -- อบรม: ข้อที่ตอบถูก · คปอ.: จำนวนเรื่องที่อนุมัติ
+    budget_baht INT DEFAULT 0,                                -- งบที่ใช้ตามมติ คปอ.
+    details_json TEXT NULL,                                   -- มติที่อนุมัติ/เลื่อน, ความรู้ที่เพิ่ม ฯลฯ
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (player_id) REFERENCES players(id),
+    FOREIGN KEY (department_id) REFERENCES departments(id),
+    FOREIGN KEY (location_id) REFERENCES locations(id),
+    INDEX idx_type_day (activity_type, scheduled_day)
 ) ENGINE=InnoDB;
 
 -- ข้อมูลทั้งหมด (แผนก สถานที่ NPC 204 คน ความทรงจำ เหตุการณ์ ฯลฯ) อยู่ในไฟล์ seed.sql

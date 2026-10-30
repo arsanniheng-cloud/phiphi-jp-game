@@ -1,4 +1,4 @@
--- ==============================================================
+﻿-- ==============================================================
 -- ข้อมูลตั้งต้นของเกม จป. เกาะพีพี (สร้างจาก data/*.js ด้วย js/db.js)
 -- ข้อมูลตั้งต้น (ยังไม่เริ่มเล่น)
 -- นำเข้าหลังรัน db/schema.sql แล้ว
@@ -6,6 +6,7 @@
 USE ehs_resort_island;
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
+DELETE FROM safety_activities;
 DELETE FROM day_reports;
 DELETE FROM jsa_permitting_logs;
 DELETE FROM safety_incidents;
@@ -19,8 +20,8 @@ DELETE FROM locations;
 DELETE FROM departments;
 DELETE FROM players;
 
-INSERT INTO players (id, username, character_name, license_no, current_reputation_score) VALUES
-  (1, 'arsan_safety', 'จป.ซัน', 'JPO-PRO-8899', 100);
+INSERT INTO players (id, username, character_name, license_no, current_reputation_score, gender, look_json) VALUES
+  (1, 'arsan_safety', 'จป.ซัน', 'JPO-PRO-8899', 100, 'M', NULL);
 INSERT INTO departments (id, code, name, short_name, department_group, headcount, work_location_id, ppe_required, toolbox_topic, color) VALUES
   (1, 'FO', 'ส่วนหน้า (Front Office)', 'ส่วนหน้า', 'Front_Office', 14, 'lobby', NULL, 'การยกกระเป๋าหนักและทางลาดชัน', '#14a5bd'),
   (2, 'FB', 'ห้องอาหารและเครื่องดื่ม (F&B)', 'ห้องอาหาร', 'F&B', 28, 'restaurant', 'รองเท้ากันลื่น', 'การถือถาดและทางเดินเปียก', '#f2a20c'),
@@ -330,4 +331,5 @@ INSERT INTO hazard_types (id, code, department_id, location_id, kind, severity, 
 -- (ไม่มีข้อมูลในตาราง safety_incidents)
 -- (ไม่มีข้อมูลในตาราง jsa_permitting_logs)
 -- (ไม่มีข้อมูลในตาราง day_reports)
+-- (ไม่มีข้อมูลในตาราง safety_activities)
 SET FOREIGN_KEY_CHECKS = 1;

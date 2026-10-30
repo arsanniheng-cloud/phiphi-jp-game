@@ -407,12 +407,77 @@ body.touch.landpref #tools button[data-ui="land"] { background: var(--accent); }
   padding: 7px 14px; font: 600 14px var(--font); cursor: pointer; min-height: 38px; }
 body.landpref .landbtn { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
 
+/* ---------------- หัวข้อย่อยในหน้าต่าง ---------------- */
+#card h3.sec { margin: 16px 0 6px; font-size: 15px; color: #ffd98a; }
+.note.bad { background: rgba(255,90,95,.14); border-color: rgba(255,90,95,.45); }
+
+/* ---------------- สร้างตัวละคร ---------------- */
+.creator { display: flex; gap: 14px; align-items: center; background: var(--panel-2); border: 1px solid var(--line); border-radius: 14px; padding: 10px 14px; margin: 4px 0 10px; }
+.creator canvas { width: 110px; height: 135px; flex: none; border-radius: 12px; background: radial-gradient(circle at 50% 85%, rgba(76,201,240,.25), rgba(255,255,255,.03) 70%); }
+.cr-ctrls { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 7px; }
+.cr-row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.cr-row > span { width: 52px; flex: none; color: var(--muted); }
+.cr-row input { flex: 1; min-width: 0; width: 0; background: rgba(0,0,0,.25); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; font: inherit; font-size: 15px; }
+.seg { display: flex; flex-wrap: wrap; gap: 4px; }
+.seg button { background: rgba(255,255,255,.08); color: var(--text); border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px; font: 600 13px var(--font); cursor: pointer; }
+.seg button.on { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+.sws { display: flex; flex-wrap: wrap; gap: 6px; }
+.sw { width: 26px; height: 26px; border-radius: 50%; border: 2px solid rgba(255,255,255,.35); cursor: pointer; padding: 0; }
+.sw.on { border-color: #fff; box-shadow: 0 0 0 3px var(--accent); }
+body.touch .sw { width: 30px; height: 30px; }
+body.touch .seg button { min-height: 36px; padding: 6px 12px; font-size: 14px; }
+/* จอแคบ: ภาพตัวอย่างอยู่ข้างแถว ชื่อ/เพศ/ทรงผม ส่วนแถวเลือกสีกว้างเต็มการ์ด (สีเรียงแถวเดียว ไม่ล้น) */
+@media (max-width: 560px) {
+  .creator { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 8px 10px; padding: 10px; }
+  .creator canvas { grid-row: 1 / span 3; width: 96px; height: 118px; align-self: center; }
+  .creator.noname canvas { grid-row: 1 / span 2; }
+  .cr-ctrls { display: contents; }
+  .creator .cr-row:nth-child(n+4), .creator.noname .cr-row:nth-child(n+3) { grid-column: 1 / -1; }
+  .cr-row > span { width: 48px; }
+  .seg button { padding: 5px 10px; }
+  body.touch .seg button { padding: 5px 10px; min-height: 34px; }
+}
+
+/* ---------------- แผนงาน / คปอ. / อบรม ---------------- */
+.chip.focus { pointer-events: auto; cursor: pointer; background: rgba(103,65,217,.85); border-color: transparent; }
+.chip.focus.todo { background: rgba(155,93,229,.95); font-weight: 700; animation: focusPulse 1.6s ease-in-out infinite; }
+@keyframes focusPulse { 50% { box-shadow: 0 0 0 4px rgba(155,93,229,.35); } }
+body.touch:not(.lands):not(.hud-open) #h-focus { display: none; }
+.focus-now { background: rgba(155,93,229,.18); border: 1px solid rgba(177,151,252,.45); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; }
+.focus-now small { color: var(--muted); }
+.focus-list button b { font-size: 15px; }
+.list.acts li > span:first-child { font-weight: 600; }
+.tag.planned { background: rgba(76,201,240,.2); color: #a5e8fb; }
+.tag.due { background: rgba(155,93,229,.35); color: #e5dbff; }
+.tag.done { background: rgba(55,214,122,.2); color: #9ff0c0; }
+.tag.missed { background: rgba(255,90,95,.22); color: #ffb3b5; }
+.tag.cancelled { background: rgba(255,255,255,.08); color: var(--muted); }
+.plan-form { background: var(--panel-2); border-radius: 12px; padding: 10px 12px; margin: 8px 0; display: flex; flex-direction: column; gap: 6px; }
+.plan-form .frow { display: flex; flex-wrap: wrap; gap: 6px; }
+.plan-form select { flex: 1 1 140px; min-width: 0; background: rgba(0,0,0,.3); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 8px; font: 14px var(--font); }
+.plan-form button.primary { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 10px; padding: 8px 14px; font: 700 14px var(--font); cursor: pointer; }
+body.touch .plan-form select, body.touch .plan-form button.primary { min-height: 44px; font-size: 15px; }
+.budget { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.budget .bar { flex: 1; max-width: 220px; }
+.kpo-props { display: flex; flex-direction: column; gap: 8px; }
+.kpo-props .prop { display: flex; gap: 10px; align-items: flex-start; background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; cursor: pointer; }
+.kpo-props .prop:has(input:checked) { border-color: var(--accent); background: rgba(255,176,32,.1); }
+.kpo-props input { width: 22px; height: 22px; flex: none; margin-top: 2px; accent-color: #ffb020; }
+.kpo-props span { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.kpo-props small { color: var(--muted); font-size: 12.5px; line-height: 1.45; }
+.kpo-total { margin: 10px 0 2px; font-size: 14px; padding: 8px 12px; border-radius: 10px; background: rgba(55,214,122,.12); }
+.kpo-total.over { background: rgba(255,90,95,.16); color: #ffc2c4; }
+.actions.quiz { display: flex; flex-direction: column; }
+.actions.quiz button { text-align: left; }
+.actions.quiz button.right { background: rgba(55,214,122,.25); border-color: #37d67a; opacity: 1; }
+.actions.quiz button.wrong { background: rgba(255,90,95,.22); border-color: #ff5a5f; opacity: 1; }
+
 /* ===================================================================
    มือถือแนวตั้ง: แถบปุ่มด้านล่างแบบแอป (มีชื่อกำกับ) · ข่าวสั้นลง · จอย/ปุ่มคุยอยู่เหนือแถบ
    =================================================================== */
 body.touch:not(.lands) #tools {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 4; width: auto;
-  display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 2px;
+  display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0;
   padding: 5px calc(6px + env(safe-area-inset-right)) calc(5px + env(safe-area-inset-bottom)) calc(6px + env(safe-area-inset-left));
   background: rgba(13, 24, 34, .9); border-top: 1px solid rgba(255,255,255,.1); box-shadow: 0 -6px 18px rgba(0,0,0,.22);
   -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
@@ -422,7 +487,7 @@ body.touch:not(.lands) #tools button {
   display: flex !important; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
 }
 body.touch:not(.lands) #tools .ic { font-size: 21px; line-height: 1; margin: 0; }
-body.touch:not(.lands) #tools .tx { display: block; font-size: 11.5px; line-height: 1.15; color: #c9d6de; white-space: nowrap; }
+body.touch:not(.lands) #tools .tx { display: block; font-size: 11px; line-height: 1.15; color: #c9d6de; white-space: nowrap; }
 body.touch:not(.lands) #tools button:active { background: rgba(255,255,255,.1); }
 body.touch:not(.lands) #tools button[data-ui="full"] { display: none !important; }   /* เต็มจอย้ายไปอยู่ในเมนู */
 body.touch:not(.lands) #tools button[data-ui="menu"] { order: 9; }

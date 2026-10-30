@@ -17,6 +17,14 @@
     Object.assign(A.playerLook(), { vest: '#2fb344', hat_color: '#ff6b6b', shirt: '#fffbe8', skin: A.SKIN[0], hair: A.HAIR[2], hair_style: 4 }),
     Object.assign(A.playerLook(), { vest: '#9b5de5', hat_color: '#ffffff', shirt: '#f3f0ff', skin: A.SKIN[3], hair: A.HAIR[0], hair_style: 3 })
   ];
+  // หน้าตาที่ผู้เล่นเลือกเอง (เพศ สีผิว ทรงผม เสื้อกั๊ก) เก็บใน S.players[].look · จำไว้ ไม่ต้องสร้างใหม่ทุกเฟรม
+  const lookCache = {};
+  function lookOf(pl) {
+    const lk = Sim.pinfo(pl.id).look;
+    if (!lk) return LOOKS[(pl.id - 1) % LOOKS.length];
+    const key = pl.id + ':' + lk.gender + lk.skin + '.' + lk.hair + '.' + lk.hair_style + '.' + lk.vest;
+    return lookCache[key] || (lookCache[key] = A.avatarLook(lk));
+  }
   const PCOL = ['rgba(255,190,40,.95)', 'rgba(0,175,240,.95)', 'rgba(47,179,68,.95)', 'rgba(155,93,229,.95)'];
   const PDOT = ['#ffd23b', '#22c7ff', '#40c057', '#b197fc'];
   const rain = [];
@@ -381,7 +389,7 @@
       const P = e.pl, k = (P.id - 1) % LOOKS.length;
       ctx.strokeStyle = PCOL[k]; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.ellipse(P.x, P.y, 13 + Math.sin(t * 4) * 1.5, 5.5, 0, 0, Math.PI * 2); ctx.stroke();
-      A.person(ctx, P.x, P.y, LOOKS[k], P.dir, P.phase, P.moving, { clipboard: true, scale: 1.08 });
+      A.person(ctx, P.x, P.y, lookOf(P), P.dir, P.phase, P.moving, { clipboard: true, scale: 1.08 });
       if (coop()) {
         const txt = 'P' + P.id + ' ' + Sim.pinfo(P.id).name;
         ctx.font = '700 11px ' + A.FONT; ctx.textAlign = 'center';
@@ -432,6 +440,27 @@
       if (h.mit) { ctx.font = '11px ' + EMOJI_FONT; ctx.fillText('📋', 15, -11); }
       else if (h.rep && !h.disc) { ctx.font = '11px ' + EMOJI_FONT; ctx.fillText('📢', 15, -11); }
       ctx.restore();
+    }
+    // จุดนัดประชุม คปอ. / อบรม ที่ถึงเวลาแล้ว: วงสีม่วงกระพริบ + ป้ายบอกชื่อกิจกรรม
+    for (const a of S.activities || []) {
+      if (a.status !== 'due' || a.x === undefined || !inV(a, view, 120)) continue;
+      const kpo = a.activity_type === 'kpo_meeting';
+      ctx.globalAlpha = 0.5 + Math.sin(t * 3) * 0.25;
+      ctx.strokeStyle = '#b197fc'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.ellipse(a.x, a.y, 64, 24, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = 1;
+      const y = a.y - 58 * s + Math.sin(t * 2.2) * 3;
+      ctx.save(); ctx.translate(a.x, y); ctx.scale(s, s);
+      const txt = kpo ? 'ประชุม คปอ.' : 'อบรม' + (Sim.TOPIC[a.topic_code] ? ' · ' + Sim.TOPIC[a.topic_code].title : '');
+      ctx.font = '700 12px ' + A.FONT;
+      const w = Math.min(230, ctx.measureText(txt).width) + 44;
+      ctx.fillStyle = 'rgba(103,65,217,.94)'; A.rr(ctx, -w / 2, -15, w, 30, 15); ctx.fill();
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; A.rr(ctx, -w / 2, -15, w, 30, 15); ctx.stroke();
+      ctx.font = '15px ' + EMOJI_FONT; ctx.textAlign = 'left'; ctx.fillStyle = '#fff';
+      ctx.fillText(kpo ? '🏛️' : '📚', -w / 2 + 9, 5.5);
+      ctx.font = '700 12px ' + A.FONT; ctx.fillText(txt, -w / 2 + 32, 4.5, 230);
+      ctx.restore();
+      ctx.textAlign = 'center';
     }
     for (const p of S.ptw) {
       if (p.status !== 'pending' || !inV(p, view)) continue;
@@ -557,6 +586,11 @@
     for (const p of S.ptw) {
       if (p.status !== 'pending') continue;
       mctx.fillStyle = '#1c7ed6'; mctx.fillRect(p.x * k - 3, p.y * k - 3, 6, 6);
+    }
+    for (const a of S.activities || []) {
+      if (a.status !== 'due' || a.x === undefined) continue;
+      mctx.fillStyle = '#9775fa'; mctx.beginPath(); mctx.arc(a.x * k, a.y * k, 5, 0, Math.PI * 2); mctx.fill();
+      mctx.strokeStyle = '#fff'; mctx.lineWidth = 1.5; mctx.stroke();
     }
     for (const pl of Sim.players()) {
       mctx.fillStyle = PDOT[(pl.id - 1) % PDOT.length];
@@ -694,15 +728,17 @@
     if (mode === 'nethost' && room) {
       window.Net.host(room).then(c => console.log('NETHOST open ' + c)).catch(e => console.log('NETHOST error ' + e.message));
       setInterval(() => console.log('NETHOST players ' + JSON.stringify(Sim.players().map(p => [p.id, Math.round(p.x), Math.round(p.y), p.remote ? 'remote' : 'local'])) +
-        ' memP2 ' + Sim.S.memories.filter(m => m.player_id === 2).length), 3000);
+        ' memP2 ' + Sim.S.memories.filter(m => m.player_id === 2).length + ' looks ' + JSON.stringify(Sim.S.players.map(p => [p.id, p.name, p.look]))), 3000);
     }
     if (mode === 'netjoin' && room) {
-      window.Net.join(room, 'จป.ทดสอบ').then(r => {
+      window.Net.join(room, 'จป.ทดสอบ', { gender: 'F', skin: 3, hair: 4, hair_style: 2, vest: 5 }).then(r => {
         console.log('NETJOIN welcome ' + JSON.stringify(r));
         setTimeout(() => {
           const S2 = Sim.S;
           console.log('NETJOIN mirror npcsVisible ' + Sim.npcs.filter(x => x.on).length + ' hazards ' + S2.hazards.length + ' players ' + Sim.players().length +
-            ' hour ' + S2.hour.toFixed(2) + ' guests ' + Sim.guests.length + ' incidents ' + S2.incidents.length);
+            ' hour ' + S2.hour.toFixed(2) + ' guests ' + Sim.guests.length + ' incidents ' + S2.incidents.length +
+            ' acts ' + JSON.stringify((S2.activities || []).map(a => [a.id, a.activity_type, a.status])) + ' budget ' + JSON.stringify(S2.budget) +
+            ' looks ' + JSON.stringify((S2.players || []).map(p => [p.id, p.look && p.look.gender, p.look && p.look.vest])));
           const n = Sim.npcs.find(x => x.on);
           if (n) window.Net.request({ k: 'npc', id: n.id, topic: 'greet' })
             .then(res => console.log('NETJOIN talk ok: ' + res.reply.text.slice(0, 60) + ' | trust ' + res.npc.trust + ' mem ' + res.npc.mem_count))
@@ -735,6 +771,18 @@
           const n = Sim.npcs.find(x => x.on && Math.random() < 0.05);
           if (n) { const r = Sim.talk(n, topics[steps % 6]); if (r.ppe_missing) Sim.ppeChoice(n, ['gentle', 'stop', 'scold'][steps % 3]); }
         }
+        // แผนงาน / ประชุม คปอ. / อบรม: เลือกแผนทุกเช้า จัดกิจกรรมที่ถึงเวลา และนัดอบรมเพิ่ม
+        if (steps % 40 === 0) {
+          if (S.focus_day !== S.day) Sim.setFocus(['PATROL', 'PPE', 'PM', 'DRILL', 'SERVICE'][S.day % 5]);
+          const a = (S.activities || []).find(x => x.status === 'due');
+          if (a && steps % 80 === 0) {
+            if (a.activity_type === 'kpo_meeting') { const g = Sim.kpoAgenda(a); Sim.finishKpo(a, g.proposals.slice(0, 2).map(p => p.code), steps % 160 === 0); }
+            else { const qz = Sim.trainingQuiz(a); Sim.finishTraining(a, qz ? qz.questions.length - (steps % 2) : 0); }
+          }
+          if (steps % 1200 === 0) {
+            Sim.schedule('training', { day: S.day + 1, hour: 8 + (steps / 1200 % 9), department_id: 1 + (steps / 1200 % 12), topic: ['FIRE', 'CPR', 'LOTO', 'HEIGHT', 'CHEM', 'WATER', 'LIFT', 'SLIP'][steps / 1200 % 8] });
+          }
+        }
         if (steps % 60 === 0) {
           const p = S.ptw.find(x => x.status === 'pending');
           if (p) { Sim.P.x = p.x; Sim.P.y = p.y; Sim.ptwDecision(p, ['check', 'approve', 'reject'][steps % 3]); }
@@ -751,7 +799,11 @@
       Object.assign(window.__test, {
         steps, panels, day: S.day, over: S.over, totals: S.totals, memories: S.memories.length, incidents: S.incidents.length,
         ptw: S.ptw.length, reports: S.day_reports.length, sqlKB: Math.round(sql.length / 1024), restoredDay: Sim.S.day,
-        metrics: Sim.S.metrics, avgTrust: Math.round(Sim.avgTrust())
+        metrics: Sim.S.metrics, avgTrust: Math.round(Sim.avgTrust()),
+        acts: (snap.state.activities || []).reduce((o, a) => { const k = a.activity_type + ':' + a.status; o[k] = (o[k] || 0) + 1; return o; }, {}),
+        upgrades: (snap.state.upgrades || []).length, trained: Object.keys(snap.state.trained || {}).length,
+        budgetLeft: snap.state.budget && snap.state.budget.left, sqlActs: (sql.match(/INSERT INTO safety_activities/g) || []).length,
+        memTypes: snap.memories.reduce((o, m) => { if (/kpo|trained|missed/.test(m.memory_type || m.type)) o[m.memory_type || m.type] = (o[m.memory_type || m.type] || 0) + 1; return o; }, {})
       });
       console.log('SIMTEST ' + JSON.stringify(window.__test));
       if (/dump/.test(location.hash)) (sql.match(/[\s\S]{1,2500}/g) || []).forEach((c, i) => console.log('SQLCHUNK ' + i + ' ' + JSON.stringify(c)));

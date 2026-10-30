@@ -14,6 +14,11 @@
   const TH_MONTH = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
   const NATIONS = ['ไทย', 'จีน', 'เยอรมนี', 'สหราชอาณาจักร', 'ออสเตรเลีย', 'เกาหลีใต้', 'ฝรั่งเศส', 'อินเดีย', 'สหรัฐอเมริกา', 'สวีเดน', 'ญี่ปุ่น', 'อิตาลี'];
   const STAY = M.buildings.filter(b => b.type === 'villa' || b.type === 'bungalow').map(b => b.label);
+  const FOCUS = {}; (G.daily_focus || []).forEach(f => { FOCUS[f.code] = f; });
+  const TOPIC = {}; (G.training_topics || []).forEach(t => { TOPIC[t.code] = t; });
+  const KPO = G.kpo || { budget_per_month: 0, proposals: [], meeting_location: 'lobby', training_location: 'canteen' };
+  const PROP = {}; KPO.proposals.forEach(p => { PROP[p.code] = p; });
+  const AV = G.avatar_options || { vests: ['#ff7a00'], hair_colors: ['#1c1512'], hair_styles_m: [0], hair_styles_f: [1] };
   const INDOOR = { FO: 1, FB: 1, KIT: 1, HK: 1, LAU: 1, SPA: 1, ENG: 1 };
 
   const rnd = Math.random;
@@ -41,12 +46,13 @@
     const list = (S && S.players) || [];
     return list.find(p => p.id === id) || { id: 1, name: PLAYER.character_name, call_young: PLAYER.call_name_young, call_senior: PLAYER.call_name_senior };
   }
-  function freshStats() { return { found: 0, closed: 0, coach: 0, scold: 0, ptw: 0, talk: 0, inv: 0 }; }
+  function freshStats() { return { found: 0, closed: 0, coach: 0, scold: 0, ptw: 0, talk: 0, inv: 0, kpo: 0, train: 0 }; }
   function credit(pid, key) {
     if (!S.by_player) S.by_player = {};
     if (!S.today_by) S.today_by = {};
-    (S.by_player[pid] = S.by_player[pid] || freshStats())[key]++;
-    (S.today_by[pid] = S.today_by[pid] || freshStats())[key]++;
+    const a = S.by_player[pid] = S.by_player[pid] || freshStats();
+    const b = S.today_by[pid] = S.today_by[pid] || freshStats();
+    a[key] = (a[key] || 0) + 1; b[key] = (b[key] || 0) + 1;
   }
 
   // ------------------------------------------------------------------ ทางเดิน (กราฟ)
@@ -179,6 +185,10 @@
       case 'ppe_remind': return me + ' เตือนเรื่องการสวม' + d;
       case 'ptw_ok': return me + ' ตรวจหน้างานและอนุมัติใบอนุญาต ' + d;
       case 'ptw_reject': return me + ' ไม่อนุมัติใบอนุญาต ' + d;
+      case 'kpo_yes': return me + ' อนุมัติ' + d + ' ในที่ประชุม คปอ.';
+      case 'kpo_no': return 'ข้อเสนอ' + d + ' ยังไม่ผ่านที่ประชุม คปอ.';
+      case 'trained': return me + ' อบรมเรื่อง' + d;
+      case 'missed': return me + ' นัด' + d + ' ไว้แต่ไม่ได้จัด';
       case 'rumor': {
         const ab = byId[o.about_npc_id];
         return 'ได้ยินจาก' + (ab ? ab.nickname : 'เพื่อน') + 'เรื่องที่ ' + me + ' ' + (RUMOR_VERB[o.rumor_of] || 'ทำ');
@@ -280,8 +290,10 @@
   }
 
   function rollDailyPpe() {
+    const f = S ? focusEff('ppe', 1) : 1;
     for (const n of npcs) {
-      n.ppe_missing = !!DEPT[n.department_id].ppe && rnd() < (100 - n.comp) / 250 + 0.03;
+      const k = f * (S ? upgradePpe(n.department_id) : 1);
+      n.ppe_missing = !!DEPT[n.department_id].ppe && rnd() < ((100 - n.comp) / 250 + 0.03) * k;
       relook(n);
     }
   }
@@ -315,18 +327,38 @@
   }
 
   // opts.names = ['จป.ซัน', 'จป.เพื่อน', ...] (คนแรกใช้ชื่อจาก data/players.js ถ้าว่าง)
+  // หน้าตาเริ่มต้นของผู้เล่นแต่ละคน (เลือกเองได้ที่หน้าสร้างตัวละคร)
+  const DEFAULT_LOOKS = [
+    { gender: 'M', skin: 1, hair: 0, hair_style: 0, vest: 0 }, { gender: 'F', skin: 2, hair: 1, hair_style: 5, vest: 1 },
+    { gender: 'M', skin: 0, hair: 2, hair_style: 4, vest: 2 }, { gender: 'F', skin: 3, hair: 0, hair_style: 2, vest: 3 }
+  ];
+  function cleanLook(l, i) {
+    const d = DEFAULT_LOOKS[(i || 0) % DEFAULT_LOOKS.length];
+    l = l && typeof l === 'object' ? l : d;
+    const toI = (v, def) => { v = Math.round(+v); return isFinite(v) ? v : def; };
+    const gender = l.gender === 'F' ? 'F' : 'M';
+    const styles = gender === 'F' ? AV.hair_styles_f : AV.hair_styles_m;
+    const hs = toI(l.hair_style, styles[0]);
+    return {
+      gender, skin: clamp(toI(l.skin, d.skin), 0, 3), hair: clamp(toI(l.hair, d.hair), 0, AV.hair_colors.length - 1),
+      hair_style: styles.indexOf(hs) >= 0 ? hs : styles[0], vest: clamp(toI(l.vest, d.vest), 0, AV.vests.length - 1)
+    };
+  }
   function makePlayers(opts) {
     const names = (opts && opts.names) || [];
+    const looks = (opts && opts.looks) || [];
     const n = Math.max(1, Math.min(MAX_PLAYERS, (opts && opts.count) || names.length || 1));
     const list = [];
     for (let i = 0; i < n; i++) {
-      if (i === 0 && !(names[0] || '').trim()) {
-        list.push({ id: 1, name: PLAYER.character_name, call_young: PLAYER.call_name_young, call_senior: PLAYER.call_name_senior });
+      const look = cleanLook(looks[i], i);
+      const n0 = (names[0] || '').trim();
+      if (i === 0 && (!n0 || n0 === PLAYER.character_name)) {
+        list.push({ id: 1, name: PLAYER.character_name, call_young: PLAYER.call_name_young, call_senior: PLAYER.call_name_senior, look });
         continue;
       }
-      const name = (names[i] || '').trim() || (i === 0 ? PLAYER.character_name : 'จป.เพื่อน ' + i);
+      const name = cleanName(names[i], i === 0 ? PLAYER.character_name : 'จป.เพื่อน ' + i);
       const short = name.replace(/^จป\.?\s*/, '') || name;
-      list.push({ id: i + 1, name, call_young: 'พี่' + short, call_senior: name });
+      list.push({ id: i + 1, name, call_young: 'พี่' + short, call_senior: name, look });
     }
     return list;
   }
@@ -349,8 +381,9 @@
       metrics: { ops: C.metrics_start.ops, guest_sat: C.metrics_start.guest_sat, reputation: PLAYER.current_reputation_score },
       totals: { found: 0, closed: 0, incidents: 0, lti: 0, serious: 0, coach: 0, scold: 0, ptw: 0 },
       today: freshToday(), days_safe: 0, dept_know: {},
-      next: { incident: 1, ptw: 1, memory: 1, hazard: 1, tourist: 1 },
+      next: { incident: 1, ptw: 1, memory: 1, hazard: 1, tourist: 1, activity: 1 },
       hazards: [], incidents: [], ptw: [], memories: [], tourists: [], day_reports: [],
+      activities: [], focus: null, focus_day: -1, upgrades: [], trained: {}, budget: null, kpo_last: null,
       spawn_in: 8, report_in: C.report_every_seconds, ptw_in: 40, warned_ops: -99,
       player: { x: 1880, y: 822, dir: 0 }
     };
@@ -370,6 +403,10 @@
     const h0 = spawnHazard('MAR_SLIP', { x: 2010, y: 812 });
     const crew = npcs.find(n => n.on && n.department_id === 9 && n.id !== 2) || npcs.find(n => n.on && n.department_id === 9);
     if (h0 && crew) discover(h0, crew);
+    // แผนงานตั้งต้น: อบรมดับเพลิงให้ครัววันนี้บ่ายโมง และประชุม คปอ. พรุ่งนี้ 10 โมง (เลื่อน/ยกเลิกได้ที่ 📅 แผนงาน)
+    ensureBudget();
+    schedule('training', { day: 0, hour: 13, department_id: 3, topic: 'FIRE' });
+    schedule('kpo_meeting', { day: 1, hour: 10 });
   }
 
   function serialize() {
@@ -407,6 +444,14 @@
     if (!S.by_player) S.by_player = {};
     if (!S.today_by) S.today_by = {};
     if (!S.players_pos) S.players_pos = S.player2 ? [S.player2] : [];
+    S.players.forEach((p, i) => { p.look = cleanLook(p.look, i); });
+    if (!S.activities) S.activities = [];
+    if (!S.next.activity) S.next.activity = S.activities.reduce((m, a) => Math.max(m, a.id), 0) + 1;
+    if (!S.upgrades) S.upgrades = [];
+    if (!S.trained) S.trained = {};
+    if (S.focus_day === undefined) { S.focus = null; S.focus_day = -1; }
+    ensureBudget();
+    S.activities.forEach(a => { if (a.status === 'due') a.status = 'missed'; });   // ผู้เข้าร่วมไม่ได้ถูกบันทึกไว้
     S.coop = S.players.length > 1;
     P.x = S.player.x; P.y = S.player.y; P.dir = S.player.dir || 0; P.route = null; P.target = null;
     placePlayers();
@@ -480,6 +525,15 @@
       n.on = on;
       if (!on) { n.status = n.away_until > S.day ? 'injured' : 'resting'; continue; }
       if (n.hurt_t > 0) { n.hurt_t -= dt; n.status = 'injured'; n.moving = false; continue; }
+      if (n.event_id) {
+        // ไปประชุม/อบรม: เดินไปจุดนัดแล้วยืนรอ
+        if (n.route && n.route.length) {
+          const pt = n.route[0];
+          if (moveFree(n, pt.x, pt.y, C.npc_speed * 2.4, dt)) n.route.shift();
+        } else { n.moving = false; n.dir = 3; }
+        n.status = 'working';
+        continue;
+      }
       const lunch = n.shift === 'M' ? S.hour >= 11.5 && S.hour < 12.5 : S.hour >= 18 && S.hour < 19;
       if (lunch !== n.lunch) {
         n.lunch = lunch; n.inside_t = 0;
@@ -541,6 +595,8 @@
         let w = hi ? t.weight_high : t.weight_low;
         w *= 1 - (S.dept_know[t.department_id] || 0) / 220;
         if (t.involves_guest) w *= 1 + risky * 1.5;
+        if (t.kind === 'equip') w *= focusEff('equip', 1);       // แผนงาน PM
+        w *= upgradeWeight(t.code) * trainedWeight(t);          // มติ คปอ. และการอบรม
         return { t, w };
       }));
     }
@@ -582,7 +638,7 @@
     else emit('log', '👀 ' + (S.coop && finder ? pinfo(finder.id).name + ' ' : '') + 'พบจุดเสี่ยง: ' + t.title + ' — ' + locName(t), 'warn');
   }
   function updateHazards(dt) {
-    const radius = S.hour >= 19 ? 130 : 190;
+    const radius = (S.hour >= 19 ? 130 : 190) * focusEff('see', 1);
     const pls = players();
     for (const h of S.hazards) {
       if (h.done) continue;
@@ -601,7 +657,7 @@
       const t = HT[h.type_id];
       const staff = npcs.filter(n => n.department_id === t.department_id && n.on && n.hurt_t <= 0);
       if (!staff.length) continue;
-      const p = clamp((avgTrust(staff) - 30) / 60, 0, 0.6);
+      const p = clamp((avgTrust(staff) - 30) / 60 * focusEff('report', 1), 0, 0.7);
       if (rnd() < p) discover(h, staff.slice().sort((a, b) => b.trust - a.trust)[0]);
     }
   }
@@ -711,6 +767,7 @@
     h.done = true; h.result = 'incident';
     let level = h.sev;
     if (level > 1 && rnd() < 0.35) level--;
+    if (level > 1 && rnd() < focusEff('sev_down', 0)) level--;   // ซ้อมแผนฉุกเฉินไว้แล้ว
     if (level > 1 && rnd() < (S.dept_know[t.department_id] || 0) / 160) level--;
     let victim = null, guestV = false;
     if (t.involves_guest && rnd() < 0.55) guestV = true;
@@ -974,8 +1031,13 @@
   function nextDay() {
     const prev = season().season_name;
     S.day++; S.hour = C.time.start_hour; S.today = freshToday(); S.today_by = {}; S.ending = false;
+    S.focus = null;
+    ensureBudget();
+    const dom = dateOf(S.day).getDate();
+    const thisMonthKpo = S.activities.some(a => a.activity_type === 'kpo_meeting' && monthKey(a.scheduled_day) === monthKey(S.day) && a.status !== 'cancelled' && a.status !== 'missed');
+    if (dom >= 20 && !thisMonthKpo) emit('log', '🏛️ เดือนนี้ยังไม่ได้นัดประชุม คปอ. (ต้องประชุมอย่างน้อยเดือนละครั้ง) นัดได้ที่ 📅 แผนงาน', 'warn');
     processCars();
-    for (const n of npcs) { n.hurt_t = 0; n.on = false; n.route = null; }
+    for (const n of npcs) { n.hurt_t = 0; n.on = false; n.route = null; n.event_id = null; }
     rollDailyPpe();
     for (const p of S.ptw) {
       if (p.status === 'pending') { p.game_day = S.day; p.created_hour = S.hour; }
@@ -998,6 +1060,12 @@
   function findInteract(pl) {
     pl = pl || P;
     let best = null, bd = 1e9;
+    for (const a of S.activities || []) {
+      if (a.status !== 'due' || a.x === undefined) continue;
+      const d = Math.hypot(pl.x - a.x, pl.y - a.y);
+      if (d < 80 && d < bd) { bd = d; best = { type: 'activity', obj: a }; }
+    }
+    if (best) return best;
     for (const h of S.hazards) {
       if (h.done || !(h.disc || h.rep)) continue;
       const d = Math.hypot(pl.x - h.x, pl.y - h.y);
@@ -1024,6 +1092,7 @@
   // scale > 1 บนมือถือ: เป้าหมายสำหรับนิ้วใหญ่กว่าเมาส์
   function pickAt(x, y, scale) {
     const k = scale || 1;
+    for (const a of S.activities || []) if (a.status === 'due' && a.x !== undefined && Math.hypot(x - a.x, y - (a.y - 40)) < 26 * k) return { type: 'activity', obj: a };
     for (const h of S.hazards) if (!h.done && (h.disc || h.rep) && Math.hypot(x - h.x, y - (h.y - 30)) < 22 * k) return { type: 'hazard', obj: h };
     for (const p of S.ptw) if (p.status === 'pending' && Math.hypot(x - p.x, y - (p.y - 30)) < 22 * k) return { type: 'ptw', obj: p };
     let best = null, bd = 20 * k;
@@ -1032,17 +1101,242 @@
     return best;
   }
 
+  // ================================================================== แผนงาน / ประชุม คปอ. / อบรม
+  function focusEff(key, d) { const f = S && S.focus && FOCUS[S.focus]; return f && f.effect[key] !== undefined ? f.effect[key] : d; }
+  function upgradeWeight(code) {
+    let w = 1;
+    (S.upgrades || []).forEach(u => { const p = PROP[u]; if (p && p.effect.hazard_codes.indexOf(code) >= 0) w *= p.effect.weight; });
+    return w;
+  }
+  function upgradePpe(deptId) {
+    let w = 1;
+    (S.upgrades || []).forEach(u => { const p = PROP[u]; if (p && p.department_id === deptId && p.effect.ppe) w *= p.effect.ppe; });
+    return w;
+  }
+  function trainedWeight(t) {
+    let w = 1;
+    Object.keys(S.trained || {}).forEach(k => {
+      const parts = k.split(':'), tp = TOPIC[parts[1]];
+      if (+parts[0] === t.department_id && tp && tp.hazard_codes.indexOf(t.code) >= 0) w *= 0.7;
+    });
+    return w;
+  }
+  function monthKey(day) { const d = dateOf(day); return d.getFullYear() * 12 + d.getMonth(); }
+  function ensureBudget() {
+    const k = monthKey(S.day);
+    if (!S.budget || S.budget.month !== k) {
+      const isNew = !!S.budget;
+      S.budget = { month: k, left: KPO.budget_per_month, total: KPO.budget_per_month };
+      if (isNew) emit('log', '💰 งบความปลอดภัยเดือนใหม่ ' + KPO.budget_per_month.toLocaleString() + ' บาท', 'info');
+    }
+  }
+  function addActivity(type, title, o) {
+    const a = Object.assign({
+      id: S.next.activity++, activity_type: type, title, department_id: null, topic_code: null, scheduled_day: S.day,
+      scheduled_hour: Math.round(S.hour * 100) / 100, status: 'done', location_id: null, attendees: 0, score: null,
+      budget_baht: 0, details: {}, player_id: actor.id
+    }, o || {});
+    S.activities.push(a);
+    if (S.activities.length > 300) S.activities.splice(0, S.activities.length - 300);
+    return a;
+  }
+  // แผนงานประจำวัน: เลือกได้วันละครั้ง
+  function setFocus(code) {
+    if (S.focus_day === S.day) return { err: 'วันนี้เลือกแผนงานไปแล้ว' };
+    S.focus_day = S.day;
+    const f = FOCUS[code];
+    S.focus = f ? code : null;
+    if (!f) return { ok: true };
+    if (f.effect.ops) S.metrics.ops = clamp(S.metrics.ops + f.effect.ops, 0, 100);
+    if (f.effect.ppe) rollDailyPpe();
+    addActivity('daily_focus', f.title, { topic_code: code });
+    emit('log', f.icon + ' แผนงานวันนี้: ' + f.title, 'info');
+    return { ok: true };
+  }
+  function schedule(type, o) {
+    o = o || {};
+    const day = Math.max(S.day, Math.round(+o.day) || S.day);
+    const hour = clamp(+o.hour || 10, C.time.start_hour + 1, C.time.end_hour - 2);
+    if (day === S.day && hour < S.hour + 0.25) return { err: 'เวลานี้ผ่านไปแล้ว เลือกเวลาที่ช้ากว่านี้' };
+    if (S.activities.some(a => (a.status === 'planned' || a.status === 'due') && a.scheduled_day === day && Math.abs(a.scheduled_hour - hour) < 1.5)) {
+      return { err: 'มีกิจกรรมอื่นนัดไว้ใกล้เวลานี้แล้ว' };
+    }
+    let title, dept = null, topic = null, loc;
+    if (type === 'kpo_meeting') { title = 'ประชุม คปอ. ประจำเดือน'; loc = KPO.meeting_location; }
+    else if (type === 'training') {
+      topic = TOPIC[o.topic] ? o.topic : null;
+      dept = DEPT[+o.department_id] ? +o.department_id : null;
+      if (!topic || !dept) return { err: 'เลือกแผนกและหัวข้ออบรมก่อน' };
+      title = 'อบรม' + TOPIC[topic].title + ' · ' + DEPT[dept].short; loc = KPO.training_location;
+    } else return { err: 'ชนิดกิจกรรมไม่ถูกต้อง' };
+    const a = addActivity(type, title, { department_id: dept, topic_code: topic, scheduled_day: day, scheduled_hour: hour, status: 'planned', location_id: loc });
+    emit('log', '📅 นัดหมาย: ' + title + ' — ' + dateText(day) + ' ' + timeText(hour) + ' น.', 'info');
+    return { ok: true, a };
+  }
+  function cancelActivity(id) {
+    const a = S.activities.find(x => x.id === id && x.status === 'planned');
+    if (!a) return false;
+    a.status = 'cancelled';
+    return true;
+  }
+  function attendeesFor(a) {
+    const on = npcs.filter(n => n.on && n.hurt_t <= 0 && !n.event_id);
+    if (a.activity_type === 'kpo_meeting') {
+      const reps = [];
+      G.departments.forEach(d => {
+        const c = on.filter(n => n.department_id === d.id).sort((x, y) => y.trust - x.trust)[0];
+        if (c) reps.push(c);
+      });
+      return reps;
+    }
+    return on.filter(n => n.department_id === a.department_id).sort((x, y) => x.comp - y.comp).slice(0, isHigh() ? 6 : 10);
+  }
+  function startDue(a) {
+    a.status = 'due';
+    const loc = LOC[a.location_id] || LOC.lobby;
+    a.x = loc.x; a.y = loc.y + 4;
+    const at = attendeesFor(a);
+    a.attendee_ids = at.map(n => n.id);
+    at.forEach((n, i) => {
+      const ang = (i / Math.max(1, at.length)) * Math.PI * 2;
+      let p = { x: loc.x + Math.cos(ang) * 52, y: loc.y + 20 + Math.sin(ang) * 16 };
+      if (!Wd.walkable(p.x, p.y)) p = pickSpot(loc, 24);
+      n.event_id = a.id; n.inside_t = 0; n.ex = p.x; n.ey = p.y;
+      n.route = route(n.x, n.y, p.x, p.y);
+    });
+    emit('log', '📅 ถึงเวลา' + a.title + ' ที่' + (loc.name || '') + ' (มา ' + at.length + ' คน) เดินไปที่จุดนัดแล้วกดเริ่ม', 'ptw');
+  }
+  function releaseAttendees(a) {
+    npcs.forEach(n => { if (n.event_id === a.id) { n.event_id = null; n.route = route(n.x, n.y, n.wx, n.wy); } });
+  }
+  function missActivity(a) {
+    a.status = 'missed';
+    releaseAttendees(a);
+    const people = npcs.filter(n => (a.attendee_ids || []).indexOf(n.id) >= 0);
+    if (a.activity_type === 'kpo_meeting') {
+      S.metrics.reputation = clamp(S.metrics.reputation - 6, 0, 100);
+      people.forEach(n => adjustTrust(n, -2, 'missed', null, false, { detail: 'ประชุม คปอ.' }));
+    } else {
+      npcs.filter(n => n.department_id === a.department_id).forEach(n => { n.trust = clamp(n.trust - 1.5, 0, 100); });
+      if (people[0]) addMemory(people[0], 'missed', { detail: 'อบรม' + (TOPIC[a.topic_code] ? TOPIC[a.topic_code].title : '') });
+      S.metrics.reputation = clamp(S.metrics.reputation - 2, 0, 100);
+    }
+    emit('log', '⏰ ไม่ได้จัด' + a.title + 'ตามนัด ' + (a.activity_type === 'kpo_meeting' ? 'ความน่าเชื่อถือลดลง' : 'พนักงานรอเก้อ'), 'bad');
+  }
+  function updateActivities() {
+    for (const a of S.activities) {
+      if (a.status === 'planned') {
+        if (a.scheduled_day < S.day) missActivity(a);
+        else if (a.scheduled_day === S.day && S.hour >= a.scheduled_hour) startDue(a);
+      } else if (a.status === 'due' && (a.scheduled_day < S.day || S.hour > a.scheduled_hour + 2)) missActivity(a);
+    }
+  }
+  function activityById(id) { return S.activities.find(a => a.id === id) || null; }
+
+  // ---- ประชุม คปอ.
+  function kpoAgenda(a) {
+    const last = S.kpo_last || { day: -1, totals: { found: 0, closed: 0, incidents: 0, lti: 0 } };
+    const T = S.totals;
+    const stats = {
+      since_day: last.day, found: T.found - last.totals.found, closed: T.closed - last.totals.closed,
+      incidents: T.incidents - last.totals.incidents, lti: T.lti - last.totals.lti,
+      open_car: S.hazards.filter(h => !h.done && h.mit).length, open_known: S.hazards.filter(h => !h.done && (h.disc || h.rep)).length
+    };
+    const risk = {};
+    G.departments.forEach(d => { risk[d.id] = 1; });
+    S.incidents.forEach(r => { const t = HT[r.hazard_type_id]; if (t && r.game_day >= last.day) risk[t.department_id] += r.injury_level ? 3 : 1; });
+    S.hazards.forEach(h => { if (!h.done) risk[HT[h.type_id].department_id] += 1; });
+    const pool = KPO.proposals.filter(p => (S.upgrades || []).indexOf(p.code) < 0);
+    const props = [];
+    while (props.length < 3 && pool.length) {
+      const pk = weighted(pool.map(p => ({ t: p, w: risk[p.department_id] * (1 + (60 - avgTrust(npcs.filter(n => n.department_id === p.department_id))) / 60) })));
+      if (!pk) break;
+      props.push(pk); pool.splice(pool.indexOf(pk), 1);
+    }
+    a.proposal_codes = props.map(p => p.code);
+    const top = Object.keys(risk).sort((x, y) => risk[y] - risk[x])[0];
+    return { stats, proposals: props, budget_left: S.budget.left, budget_total: S.budget.total, top_dept: +top, attendees: (a.attendee_ids || []).length };
+  }
+  function finishKpo(a, approve, rushCar) {
+    if (!a || a.status !== 'due' || a.activity_type !== 'kpo_meeting') return { err: 'การประชุมนี้จบไปแล้ว' };
+    approve = (approve || []).filter(c => (a.proposal_codes || []).indexOf(c) >= 0 && PROP[c]);
+    let spent = 0;
+    const ok = [];
+    for (const c of approve) { const p = PROP[c]; if (spent + p.cost <= S.budget.left) { spent += p.cost; ok.push(c); } }
+    let cars = rushCar ? S.hazards.filter(h => !h.done && h.mit) : [];
+    if (spent + cars.length * 5000 > S.budget.left) cars = [];
+    spent += cars.length * 5000;
+    S.budget.left -= spent;
+    S.upgrades = (S.upgrades || []).concat(ok);
+    const people = npcs.filter(n => (a.attendee_ids || []).indexOf(n.id) >= 0);
+    for (const c of a.proposal_codes || []) {
+      const p = PROP[c], yes = ok.indexOf(c) >= 0;
+      for (const n of npcs) if (n.department_id === p.department_id) n.trust = clamp(n.trust + (yes ? p.effect.trust * 0.5 : -2), 0, 100);
+      const rep = people.find(n => n.department_id === p.department_id) || npcs.find(n => n.department_id === p.department_id);
+      addMemory(rep, yes ? 'kpo_yes' : 'kpo_no', { detail: p.title });
+    }
+    if (ok.some(c => PROP[c].effect.ppe)) rollDailyPpe();
+    cars.forEach(h => {
+      h.done = true; h.result = 'car'; S.totals.closed++; S.today.closed++;
+      const row = incidentRow(h);
+      if (row) { row.status = 'closed'; row.corrective_action_taken += ' — ปิดเร็วตามมติ คปอ.'; }
+    });
+    const rep = 3 + ok.length + (cars.length ? 1 : 0);
+    S.metrics.reputation = clamp(S.metrics.reputation + rep, 0, 100);
+    S.kpo_last = { day: S.day, totals: { found: S.totals.found, closed: S.totals.closed, incidents: S.totals.incidents, lti: S.totals.lti } };
+    const deferred = (a.proposal_codes || []).filter(c => ok.indexOf(c) < 0);
+    Object.assign(a, { status: 'done', score: ok.length, budget_baht: spent, attendees: people.length, details: { approved: ok, deferred, rushed_car: cars.length } });
+    releaseAttendees(a);
+    credit(actor.id, 'kpo');
+    emit('log', '🏛️ ปิดประชุม คปอ.: อนุมัติ ' + ok.length + ' เรื่อง ใช้งบ ' + spent.toLocaleString() + ' บาท', 'good');
+    return { ok: true, approved: ok.map(c => PROP[c].title), deferred: deferred.map(c => PROP[c].title), spent, budget_left: S.budget.left, rushed: cars.length, rep };
+  }
+
+  // ---- อบรมพนักงาน (ตอบคำถาม)
+  function trainingQuiz(a) {
+    const t = TOPIC[a.topic_code];
+    if (!t) return null;
+    const idx = t.questions.map((q, i) => i);
+    for (let i = idx.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); const tmp = idx[i]; idx[i] = idx[j]; idx[j] = tmp; }
+    a.quiz = idx.slice(0, Math.min(3, idx.length));
+    return { topic: t, questions: a.quiz.map(i => t.questions[i]), attendees: (a.attendee_ids || []).length };
+  }
+  function finishTraining(a, correct) {
+    if (!a || a.status !== 'due' || a.activity_type !== 'training') return { err: 'การอบรมนี้จบไปแล้ว' };
+    const t = TOPIC[a.topic_code];
+    const total = (a.quiz || []).length || 3;
+    correct = clamp(Math.round(+correct) || 0, 0, total);
+    const people = npcs.filter(x => (a.attendee_ids || []).indexOf(x.id) >= 0);
+    const ratio = correct / total;
+    const gain = Math.round((6 + ratio * 16) * (people.length ? 1 : 0.3));
+    S.dept_know[a.department_id] = clamp((S.dept_know[a.department_id] || 0) + gain, 0, 100);
+    people.forEach(x => {
+      x.comp = clamp(x.comp + 2 + ratio * 4, 0, 100);
+      adjustTrust(x, 1 + ratio * 3, 'trained', null, false, { detail: t.title });
+    });
+    S.trained = S.trained || {};
+    S.trained[a.department_id + ':' + a.topic_code] = true;
+    S.metrics.ops = clamp(S.metrics.ops - people.length * 0.5 * season().ops_cost_multiplier, 0, 100);
+    const rep = 1 + Math.round(ratio * 2);
+    S.metrics.reputation = clamp(S.metrics.reputation + rep, 0, 100);
+    Object.assign(a, { status: 'done', score: correct, attendees: people.length, details: { questions: total, knowledge_gain: gain } });
+    releaseAttendees(a);
+    credit(actor.id, 'train');
+    emit('log', '📚 ' + a.title + ' ผู้เข้าร่วม ' + people.length + ' คน ตอบถูก ' + correct + '/' + total, 'good');
+    return { ok: true, gain, correct, total, attendees: people.length, rep, topic: t.title, dept: DEPT[a.department_id].short };
+  }
+
   // ================================================================== ONLINE (ต่างเครื่อง)
   // เจ้าของห้องรันโลกทั้งหมด → ส่ง snapshot ให้ผู้ร่วมเล่น · ผู้ร่วมเล่นเดินเอง แล้วส่งตำแหน่งกลับ
   const r1 = v => Math.round(v * 10) / 10;
   function cleanName(s, fallback) { return String(s || '').replace(/[<>"&]/g, '').trim().slice(0, 20) || fallback; }
 
-  function addRemotePlayer(name) {
+  function addRemotePlayer(name, look) {
     if (PLS.length >= MAX_PLAYERS) return null;
     const id = Math.max(...S.players.map(p => p.id), ...PLS.map(p => p.id)) + 1;
     name = cleanName(name, 'จป.เพื่อน ' + (id - 1));
     const short = name.replace(/^จป\.?\s*/, '') || name;
-    S.players.push({ id, name, call_young: 'พี่' + short, call_senior: name, online: true });
+    S.players.push({ id, name, call_young: 'พี่' + short, call_senior: name, online: true, look: cleanLook(look, id - 1) });
     const pl = { id, x: P.x - 30, y: P.y + 14, dir: 0, phase: 0, moving: false, route: null, target: null, remote: true };
     if (!Wd.walkable(pl.x, pl.y)) { pl.x = P.x; pl.y = P.y; }
     PLS.push(pl);
@@ -1094,7 +1388,12 @@
         on: npcs.filter(n => n.on).map(n => n.id), ppe: npcs.filter(n => n.ppe_missing).map(n => n.id),
         incidents: S.incidents.slice(-40), totals: S.totals, today: S.today, days_safe: S.days_safe,
         day_reports: S.day_reports.slice(-12), by_player: S.by_player, today_by: S.today_by, dept_know: S.dept_know,
-        tc: S.tourists.length, gt: guests.map(g => g.t)
+        tc: S.tourists.length, gt: guests.map(g => g.t),
+        acts: S.activities.filter(a => a.activity_type !== 'daily_focus').slice(-20).map(a => ({
+          id: a.id, activity_type: a.activity_type, title: a.title, department_id: a.department_id, topic_code: a.topic_code,
+          scheduled_day: a.scheduled_day, scheduled_hour: a.scheduled_hour, status: a.status, x: a.x, y: a.y, attendees: a.attendees, score: a.score
+        })),
+        focus: S.focus, budget: S.budget
       };
     }
     return snap;
@@ -1136,7 +1435,8 @@
       pls: sn.pls.slice(0, MAX_PLAYERS + 4).map(a => [int(a[0]), num(a[1]), num(a[2]), int(a[3]) & 3, a[4] ? 1 : 0]),
       players: (Array.isArray(sn.players) ? sn.players : []).slice(0, 32).map(p => {
         const name = cleanName(p && p.name, 'จป.');
-        return { id: int(p && p.id), name, call_young: cleanName(p && p.call_young, name), call_senior: cleanName(p && p.call_senior, name), online: !!(p && p.online) };
+        return { id: int(p && p.id), name, call_young: cleanName(p && p.call_young, name), call_senior: cleanName(p && p.call_senior, name), online: !!(p && p.online),
+          look: cleanLook(p && p.look, int(p && p.id) - 1) };
       }),
       hz: (Array.isArray(sn.hz) ? sn.hz : []).slice(0, 60).filter(h => h && HT[int(h.type_id)]).map(h => ({
         id: int(h.id), type_id: int(h.type_id), x: num(h.x), y: num(h.y), sev: Math.max(1, Math.min(4, int(h.sev, 1))),
@@ -1176,6 +1476,15 @@
         }))
       };
       ['by_player', 'today_by'].forEach(k => { const src = sl[k]; if (src && typeof src === 'object') Object.keys(src).slice(0, 32).forEach(pid => { if (/^\d{1,4}$/.test(pid)) out.slow[k][pid] = numObj(src[pid]); }); });
+      out.slow.acts = (Array.isArray(sl.acts) ? sl.acts : []).slice(-30).map(a => ({
+        id: int(a.id), activity_type: oneOf(a.activity_type, ['kpo_meeting', 'training'], 'training'), title: str(a.title, 120),
+        department_id: DEPT[int(a.department_id)] ? int(a.department_id) : null, topic_code: TOPIC[a.topic_code] ? a.topic_code : null,
+        scheduled_day: int(a.scheduled_day), scheduled_hour: num(a.scheduled_hour, 10), status: oneOf(a.status, ['planned', 'due', 'done', 'missed', 'cancelled'], 'planned'),
+        x: a.x === undefined || a.x === null ? undefined : num(a.x), y: a.y === undefined || a.y === null ? undefined : num(a.y),
+        attendees: int(a.attendees), score: a.score === null || a.score === undefined ? null : int(a.score)
+      }));
+      out.slow.focus = FOCUS[sl.focus] ? sl.focus : null;
+      out.slow.budget = sl.budget && typeof sl.budget === 'object' ? { month: int(sl.budget.month), left: num(sl.budget.left), total: num(sl.budget.total) } : null;
     }
     return out;
   }
@@ -1223,7 +1532,8 @@
       const ppeSet = new Set(sl.ppe);
       npcs.forEach(n => { const v = ppeSet.has(n.id); if (v !== n.ppe_missing) { n.ppe_missing = v; relook(n); } });
       Object.assign(S, { incidents: sl.incidents, totals: sl.totals, today: sl.today, days_safe: sl.days_safe, day_reports: sl.day_reports,
-        by_player: sl.by_player, today_by: sl.today_by, dept_know: sl.dept_know, tourist_count: sl.tc, on_count: sl.on.length, tourists: sl.gt });
+        by_player: sl.by_player, today_by: sl.today_by, dept_know: sl.dept_know, tourist_count: sl.tc, on_count: sl.on.length, tourists: sl.gt,
+        activities: sl.acts, focus: sl.focus, budget: sl.budget || S.budget });
       S.on_ids = new Set(sl.on);
     }
     const tmap = {};
@@ -1275,8 +1585,9 @@
     updateReports(dt);
     updatePtw(dt);
     updateMetrics(dt);
+    updateActivities();
     S.spawn_in -= dt;
-    if (S.spawn_in <= 0) { spawnHazard(); S.spawn_in = season().hazard_spawn_seconds * (0.7 + rnd() * 0.6); }
+    if (S.spawn_in <= 0) { spawnHazard(); S.spawn_in = season().hazard_spawn_seconds * (0.7 + rnd() * 0.6) * focusEff('spawn', 1); }
   }
 
   function deptStats() {
@@ -1298,6 +1609,8 @@
     nextDay, toggleSeason, deptStats, callName, topMemory, spawnHazard, CAUSES,
     DEPT, HT, LOC, P, PLAYER, players, pinfo, freshStats,
     MAX_PLAYERS, get P2() { return PLS[1] || null; }, get actor() { return actor; }, setActor: pl => { actor = pl || P; },
+    setFocus, schedule, cancelActivity, activityById, kpoAgenda, finishKpo, trainingQuiz, finishTraining, cleanLook,
+    FOCUS, TOPIC, KPO, PROP, AV,
     get net() { return NET; }, setNet: m => { NET = m; }, addRemotePlayer, removeRemotePlayer, netSetPos, netSnapshot,
     netStartClient, netApply, npcModel, applyNpcModel,
     get S() { return S; }, get npcs() { return npcs; }, get guests() { return guests; }, byId: id => byId[id],

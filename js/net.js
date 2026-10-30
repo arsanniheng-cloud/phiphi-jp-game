@@ -74,7 +74,7 @@
     if (d.t === 'hello') {
       if (conns.has(conn)) return;
       if (!Sim.S || Sim.players().length >= Sim.MAX_PLAYERS) { send(conn, { t: 'full' }); setTimeout(() => conn.close(), 400); return; }
-      const pl = Sim.addRemotePlayer(d.name);
+      const pl = Sim.addRemotePlayer(d.name, d.look);   // หน้าตาถูกกรองค่าใน Sim.cleanLook
       if (!pl) { send(conn, { t: 'full' }); return; }
       conns.set(conn, { pid: pl.id });
       send(conn, { t: 'welcome', pid: pl.id, room, snap: Sim.netSnapshot(true) });
@@ -140,7 +140,7 @@
   function nextDay() { if (mode === 'host') broadcast({ t: 'nextday' }); }
 
   // ------------------------------------------------------------------ client
-  function join(code, name) {
+  function join(code, name, look) {
     return new Promise((resolve, reject) => {
       if (!available()) { reject(new Error('โหลดไลบรารีออนไลน์ไม่สำเร็จ')); return; }
       code = cleanCode(code);
@@ -153,7 +153,7 @@
       peer.on('open', () => {
         const conn = peer.connect(PREFIX + code, { reliable: true });
         hostConn = conn;
-        conn.on('open', () => send(conn, { t: 'hello', name: String(name || '').slice(0, 20) }));
+        conn.on('open', () => send(conn, { t: 'hello', name: String(name || '').slice(0, 20), look: Sim.cleanLook(look, 1) }));
         conn.on('data', d => {
           if (!d || typeof d !== 'object') return;
           if (d.t === 'welcome' && !done) {

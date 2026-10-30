@@ -150,10 +150,12 @@
       if (L.hair_style === 2) { rr(c, -7.8, hy, 15.6, 10, 4); c.fill(); }
       if (L.hair_style === 3) { c.beginPath(); c.arc(0, hy - 7.5, 3.6, 0, TAU); c.fill(); }
       if (L.hair_style === 1) { rr(c, -8.4, hy - 2, 16.8, 8, 3); c.fill(); }
+      if (L.hair_style === 5) { c.beginPath(); c.arc(0, hy + 3.4, 3.7, 0, TAU); c.fill(); }   // รวบผมต่ำ (มองเห็นใต้หมวกนิรภัย)
       c.globalAlpha = o.alpha !== undefined ? o.alpha : 1;
     } else if (side) {
       c.fillStyle = shade(skin, -0.15); c.beginPath(); c.arc(-f * 0.8, hy + 0.8, 1.7, 0, TAU); c.fill();
       c.fillStyle = '#2a1d16'; c.beginPath(); c.ellipse(f * 3.7, hy + 0.5, 1.05, 1.5, 0, 0, TAU); c.fill();
+      if (L.lashes) { c.strokeStyle = '#2a1d16'; c.lineWidth = 0.7; c.beginPath(); c.moveTo(f * 4.4, hy - 0.4); c.lineTo(f * 5.5, hy - 1.3); c.stroke(); }
       c.fillStyle = 'rgba(240,120,110,.35)'; c.beginPath(); c.ellipse(f * 4.1, hy + 3.1, 1.5, 0.9, 0, 0, TAU); c.fill();
       if (L.glasses) { c.fillStyle = '#151515'; rr(c, f > 0 ? 1.8 : -6.4, hy - 0.8, 4.6, 2.6, 1); c.fill(); }
       c.fillStyle = hairCol;
@@ -161,6 +163,7 @@
       const plen = L.hair_style === 2 ? 15 : (L.hair_style === 1 ? 9 : 6);
       rr(c, f > 0 ? -8.2 : 3.6, hy - 3.5, 4.6, plen, 2); c.fill();
       if (L.hair_style === 3) { c.beginPath(); c.arc(-f * 4.4, hy - 6.8, 3.4, 0, TAU); c.fill(); }
+      if (L.hair_style === 5) { c.beginPath(); c.arc(-f * 7.6, hy + 1.8, 3.4, 0, TAU); c.fill(); }
     } else {
       c.fillStyle = '#2a1d16';
       c.beginPath(); c.ellipse(-2.8, hy + 0.6, 1.1, 1.5, 0, 0, TAU); c.fill();
@@ -171,7 +174,11 @@
       c.fillStyle = 'rgba(240,120,110,.33)';
       c.beginPath(); c.ellipse(-4.7, hy + 3, 1.6, 0.9, 0, 0, TAU); c.fill();
       c.beginPath(); c.ellipse(4.7, hy + 3, 1.6, 0.9, 0, 0, TAU); c.fill();
-      c.strokeStyle = 'rgba(120,50,40,.75)'; c.lineWidth = 0.8;
+      if (L.lashes) {
+        c.strokeStyle = '#2a1d16'; c.lineWidth = 0.7;
+        c.beginPath(); c.moveTo(-3.8, hy - 0.2); c.lineTo(-4.9, hy - 1.2); c.moveTo(3.8, hy - 0.2); c.lineTo(4.9, hy - 1.2); c.stroke();
+      }
+      c.strokeStyle = L.lashes ? 'rgba(200,70,90,.85)' : 'rgba(120,50,40,.75)'; c.lineWidth = 0.8;
       c.beginPath(); c.arc(0, hy + 2.9, 1.4, 0.2 * Math.PI, 0.8 * Math.PI); c.stroke();
       if (L.glasses) {
         c.fillStyle = '#151515'; rr(c, -5.6, hy - 0.7, 4.6, 2.7, 1); c.fill(); rr(c, 1, hy - 0.7, 4.6, 2.7, 1); c.fill();
@@ -231,6 +238,18 @@
   function playerLook() {
     return { skin: SKIN[1], hair: HAIR[0], hair_style: 0, shirt: '#f7f7f2', pants: '#2c3a55', vest: '#ff7a00',
       trim: '#ffffff', hat: 'hardhat', hat_color: '#ffffff', shoe: '#3a2a1e' };
+  }
+  // หน้าตาผู้เล่นจากหน้าสร้างตัวละคร: a = { gender, skin, hair, hair_style, vest } (skin/hair/vest = ลำดับในตัวเลือก)
+  function avatarLook(a) {
+    const AVO = (root.GAME_DATA && root.GAME_DATA.avatar_options) || {};
+    const L = playerLook();
+    a = a || {};
+    L.skin = SKIN[a.skin] || SKIN[1];
+    L.hair = (AVO.hair_colors || HAIR)[a.hair] || HAIR[0];
+    L.hair_style = +a.hair_style || 0;
+    L.vest = (AVO.vests || [])[a.vest] || '#ff7a00';
+    L.lashes = a.gender === 'F';
+    return L;
   }
 
   // NPC: แต่งตัวตามแผนก
@@ -793,7 +812,7 @@
   root.Art = {
     loadSprites, sprite, spriteList,
     TAU, FONT, RES, SKIN, HAIR, rng, shade, rr, ell, canvas,
-    person, playerLook, npcLook, guestLook,
+    person, playerLook, avatarLook, npcLook, guestLook,
     palmSprite, canopySprite, makeBuilding, makeProp, longtail, speedboat, roofRise
   };
 })(window);

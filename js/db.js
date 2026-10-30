@@ -104,16 +104,33 @@
     if (snap) snap.npcs.forEach(n => { npcState[n.id] = n; });
     const activeSeason = snap ? snap.state.season_name : 'High_Season';
 
-    // ผู้เล่น: คนที่ 1 จาก data/players.js + คนที่ 2 (โหมดเล่นกับเพื่อน) จากสถานะเกม
-    const players = G.players.map(p => Object.assign({}, p, {
-      current_reputation_score: st ? Math.round(st.metrics.reputation) : p.current_reputation_score
-    }));
+    // ผู้เล่น: คนที่ 1 จาก data/players.js (ชื่อ/หน้าตาตามที่เลือกในเกม) + คนอื่นจากสถานะเกม
+    const stPl = {};
+    if (st && st.players) st.players.forEach(p => { stPl[p.id] = p; });
+    const players = G.players.map(p => {
+      const s = stPl[p.id];
+      return Object.assign({}, p, {
+        character_name: s ? s.name : p.character_name,
+        gender: s && s.look ? s.look.gender : (p.gender || 'M'),
+        look_json: s && s.look ? s.look : null,
+        current_reputation_score: st ? Math.round(st.metrics.reputation) : p.current_reputation_score
+      });
+    });
     if (st && st.players) {
       st.players.filter(p => !players.some(x => x.id === p.id)).forEach(p => players.push({
         id: p.id, username: 'player_' + p.id, character_name: p.name, license_no: null,
-        current_reputation_score: Math.round(st.metrics.reputation)
+        current_reputation_score: Math.round(st.metrics.reputation),
+        gender: p.look ? p.look.gender : 'M', look_json: p.look || null
       }));
     }
+    const hhmm = h => { h = +h || 0; const hh = Math.floor(h), mm = Math.round((h - hh) * 60); return String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0'); };
+    const activities = (st && st.activities ? st.activities : []).map(a => ({
+      id: a.id, activity_type: a.activity_type, title: a.title, player_id: a.player_id || 1, department_id: a.department_id || null,
+      topic_code: a.topic_code || null, scheduled_day: a.scheduled_day, scheduled_date: dateForDay(C.time.start_date, a.scheduled_day),
+      scheduled_time: hhmm(a.scheduled_hour), location_id: a.location_id || null, status: a.status, attendees: a.attendees || 0,
+      score: a.score === undefined ? null : a.score, budget_baht: a.budget_baht || 0,
+      details_json: a.details && Object.keys(a.details).length ? a.details : null
+    }));
 
     const departments = G.departments.map(d => ({
       id: d.id, code: d.code, name: d.name, short_name: d.short, department_group: DEPT_GROUP[d.code] || 'Merchant',
@@ -164,10 +181,10 @@
     sql += '-- นำเข้าหลังรัน db/schema.sql แล้ว\n';
     sql += '-- ==============================================================\n';
     sql += 'USE ehs_resort_island;\nSET NAMES utf8mb4;\nSET FOREIGN_KEY_CHECKS = 0;\n';
-    ['day_reports', 'jsa_permitting_logs', 'safety_incidents', 'dynamic_tourists', 'tourist_seasons', 'npc_memories',
+    ['safety_activities', 'day_reports', 'jsa_permitting_logs', 'safety_incidents', 'dynamic_tourists', 'tourist_seasons', 'npc_memories',
       'resort_npcs', 'hazard_types', 'buildings', 'locations', 'departments', 'players'].forEach(t => { sql += 'DELETE FROM ' + t + ';\n'; });
     sql += '\n';
-    sql += inserts('players', ['id', 'username', 'character_name', 'license_no', 'current_reputation_score'], players);
+    sql += inserts('players', ['id', 'username', 'character_name', 'license_no', 'current_reputation_score', 'gender', 'look_json'], players);
     sql += inserts('departments', ['id', 'code', 'name', 'short_name', 'department_group', 'headcount', 'work_location_id', 'ppe_required', 'toolbox_topic', 'color'], departments);
     sql += inserts('locations', ['id', 'name', 'x', 'y', 'rx', 'ry'], G.map.work_locations);
     sql += inserts('buildings', ['id', 'building_type', 'label', 'x', 'y', 'w', 'd', 'h'],
@@ -190,6 +207,8 @@
       'approved_by_player_id', 'is_ppe_checked', 'status', 'game_day'], snap ? snap.ptw : []);
     sql += inserts('day_reports', ['player_id', 'game_day', 'game_date', 'season_name', 'hazards_found', 'hazards_closed',
       'incidents', 'lost_time_injuries', 'ops_score', 'guest_sat', 'reputation', 'avg_trust'], reports);
+    sql += inserts('safety_activities', ['id', 'activity_type', 'title', 'player_id', 'department_id', 'topic_code', 'scheduled_day',
+      'scheduled_date', 'scheduled_time', 'location_id', 'status', 'attendees', 'score', 'budget_baht', 'details_json'], activities);
     sql += 'SET FOREIGN_KEY_CHECKS = 1;\n';
     return sql;
   }

@@ -25,7 +25,8 @@
 <meta name="mobile-web-app-capable" content="yes">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css">
+<!-- ?v= เปลี่ยนทุกครั้งที่อัปเดต: มือถือจะได้ไม่ใช้ไฟล์เก่าปนกับไฟล์ใหม่ -->
+<link rel="stylesheet" href="css/style.css?v=20261030">
 </head>
 <body>
 <canvas id="game"></canvas>
@@ -35,6 +36,7 @@
     <span class="chip" id="h-date">กำลังโหลด…</span>
     <span class="chip" id="h-time"></span>
     <span class="chip" id="h-season"></span>
+    <span class="chip focus" id="h-focus" hidden title="แผนงานวันนี้ (แตะเพื่อเปิดแผนงาน)"></span>
     <span class="chip" id="h-guests"></span>
     <span class="chip" id="h-staff"></span>
     <span class="chip safe" id="h-safe"></span>
@@ -55,6 +57,7 @@
     <button data-ui="staff" aria-label="พนักงาน"><span class="ic">👥</span><span class="tx">พนักงาน</span></button>
     <button data-ui="log" aria-label="สมุดบันทึก"><span class="ic">📋</span><span class="tx">บันทึก</span><em id="badge-log"></em></button>
     <button data-ui="ptw" aria-label="ใบอนุญาตทำงาน"><span class="ic">📝</span><span class="tx">PTW</span><em id="badge-ptw"></em></button>
+    <button data-ui="plan" aria-label="แผนงาน ประชุม คปอ. และอบรม"><span class="ic">📅</span><span class="tx">แผนงาน</span><em id="badge-plan"></em></button>
     <button data-ui="menu" aria-label="เมนู"><span class="ic">☰</span><span class="tx">เมนู</span></button>
     <button data-ui="full" class="mob-only" aria-label="เต็มจอ"><span class="ic">⛶</span><span class="tx">เต็มจอ</span></button>
     <button data-ui="land" class="mob-only" aria-label="สลับแนวนอน/แนวตั้ง"><span class="ic">🔄</span><span class="tx">แนวนอน</span></button>
@@ -73,24 +76,25 @@
 <input type="file" id="file-import" accept=".json,application/json" hidden>
 
 <!-- ข้อมูล (ฐานข้อมูลของเกม แยกเป็นไฟล์ตามตาราง) -->
-<script src="data/config.js"></script>
-<script src="data/departments.js"></script>
-<script src="data/locations.js"></script>
-<script src="data/hazard_types.js"></script>
-<script src="data/dialogue.js"></script>
-<script src="data/players.js"></script>
-<script src="data/npcs.js"></script>
+<script src="data/config.js?v=20261030"></script>
+<script src="data/departments.js?v=20261030"></script>
+<script src="data/locations.js?v=20261030"></script>
+<script src="data/hazard_types.js?v=20261030"></script>
+<script src="data/dialogue.js?v=20261030"></script>
+<script src="data/players.js?v=20261030"></script>
+<script src="data/npcs.js?v=20261030"></script>
+<script src="data/activities.js?v=20261030"></script>
 <!-- ภาพ 3 มิติจาก Blender (ถ้าไม่มีไฟล์นี้ เกมจะใช้ภาพที่วาดด้วยโค้ดแทน) -->
-<script src="assets/sprites/manifest.js"></script>
+<script src="assets/sprites/manifest.js?v=20261030"></script>
 <!-- โค้ดเกม -->
-<script src="js/db.js"></script>
-<script src="js/art.js"></script>
-<script src="js/world.js"></script>
-<script src="js/sim.js"></script>
+<script src="js/db.js?v=20261030"></script>
+<script src="js/art.js?v=20261030"></script>
+<script src="js/world.js?v=20261030"></script>
+<script src="js/sim.js?v=20261030"></script>
 <!-- เล่นออนไลน์ต่างเครื่อง: PeerJS 1.5.5 (MIT, ตรวจ sha512 กับ npm แล้ว) -->
 <script src="vendor/peerjs-1.5.5.min.js"></script>
-<script src="js/net.js"></script>
-<script src="js/ui.js"></script>
-<script src="js/main.js"></script>
+<script src="js/net.js?v=20261030"></script>
+<script src="js/ui.js?v=20261030"></script>
+<script src="js/main.js?v=20261030"></script>
 </body>
 </html>
