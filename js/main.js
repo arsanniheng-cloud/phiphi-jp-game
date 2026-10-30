@@ -4,6 +4,9 @@
 (function () {
   'use strict';
   const G = window.GAME_DATA, A = window.Art, Wd = window.World, Sim = window.Sim, UI = window.UI, DB = window.GameDB;
+  // เบราว์เซอร์บางเครื่องค้างไฟล์ art.js เก่าไว้ในแคชคู่กับ main.js ใหม่ → ต้องไม่พังเมื่อฟังก์ชันใหม่ยังไม่มี (ใช้วิธีวาดแบบเดิมไปก่อน)
+  const hasCache = !!(A.drawPerson && A.personCacheInit && A.personCacheFrame);
+  const drawPerson = hasCache ? A.drawPerson : A.person;
   const cv = document.getElementById('game'), ctx = cv.getContext('2d');
   const miniCv = document.getElementById('minimap'), mctx = miniCv.getContext('2d');
   let VW = 0, VH = 0, DPR = 1, dprCap = 9, Z = 1, zoomMul = 1, camX = 0, camY = 0, camInit = false;
@@ -96,7 +99,7 @@
     if (ROT && ae && /^(INPUT|TEXTAREA)$/.test(ae.tagName)) return;
     applyRot();
     DPR = Math.min(window.devicePixelRatio || 1, touch ? 1.75 : 2, dprCap);   // มือถือ: จำกัดความละเอียดเพื่อให้ลื่น (เครื่องช้ามากจะลดลงอีกอัตโนมัติ)
-    A.personCacheInit(touch && DPR < 1.4 ? 1.5 : 2);
+    if (hasCache) A.personCacheInit(touch && DPR < 1.4 ? 1.5 : 2);
     VW = ROT ? window.innerHeight : window.innerWidth; VH = ROT ? window.innerWidth : window.innerHeight;
     cv.width = Math.round(VW * DPR); cv.height = Math.round(VH * DPR);
     cv.style.width = VW + 'px'; cv.style.height = VH + 'px';
@@ -380,17 +383,17 @@
   function drawEntity(e, t, S) {
     if (e.kind === 'npc') {
       const n = e.n;
-      A.drawPerson(ctx, n.x, n.y, n.L, n.dir, n.phase, n.moving, n.hurt_t > 0 ? { alpha: 0.8 } : null);
+      drawPerson(ctx, n.x, n.y, n.L, n.dir, n.phase, n.moving, n.hurt_t > 0 ? { alpha: 0.8 } : null);
       const d = Math.hypot(Sim.P.x - n.x, Sim.P.y - n.y);
       if (n.hurt_t > 0) badge(n.x, n.y - 50, '#e03131', '✚');
       else if (n.ppe_missing && d < 170) warnTri(n.x, n.y - 50);
     } else if (e.kind === 'guest') {
-      A.drawPerson(ctx, e.g.x, e.g.y, e.g.L, e.g.dir, e.g.phase, e.g.moving, { scale: 0.95 });
+      drawPerson(ctx, e.g.x, e.g.y, e.g.L, e.g.dir, e.g.phase, e.g.moving, { scale: 0.95 });
     } else if (e.kind === 'player') {
       const P = e.pl, k = (P.id - 1) % LOOKS.length;
       ctx.strokeStyle = PCOL[k]; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.ellipse(P.x, P.y, 13 + Math.sin(t * 4) * 1.5, 5.5, 0, 0, Math.PI * 2); ctx.stroke();
-      A.drawPerson(ctx, P.x, P.y, lookOf(P), P.dir, P.phase, P.moving, { clipboard: true, scale: 1.08 });
+      drawPerson(ctx, P.x, P.y, lookOf(P), P.dir, P.phase, P.moving, { clipboard: true, scale: 1.08 });
       if (coop()) {
         const txt = 'P' + P.id + ' ' + Sim.pinfo(P.id).name;
         ctx.font = '700 11px ' + A.FONT; ctx.textAlign = 'center';
@@ -604,7 +607,7 @@
   function render(t, dt) {
     const S = Sim.S;
     const pls = Sim.players();
-    A.personCacheFrame(8);
+    if (hasCache) A.personCacheFrame(8);
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     ctx.fillStyle = '#0a5c98'; ctx.fillRect(0, 0, VW, VH);
     // กล้อง: เล่นเครื่องเดียวกันหลายคน = จับกึ่งกลางทุกคนและซูมออกให้เห็นครบ · ออนไลน์ = ตามตัวเราเอง
@@ -672,7 +675,22 @@
   }
 
   // ------------------------------------------------------------------ boot
+  // ไฟล์เกมบางตัวเป็นเวอร์ชันเก่าที่ค้างในแคชของเบราว์เซอร์ (เช่น ได้ art.js เก่าคู่กับ main.js ใหม่): โหลดไฟล์ทั้งหมดใหม่ครั้งเดียวแล้วเปิดเกมอีกครั้ง
+  // ถ้าทำแล้วยังเก่าอยู่ก็เล่นต่อได้ตามปกติ (โค้ดข้างบนทนไฟล์เก่าได้) ไม่วนซ้ำ
+  function healCache() {
+    let tried = false;
+    try { tried = sessionStorage.getItem('jp_heal') === '1'; } catch (e) { /* ใช้ไม่ได้ */ }
+    if (tried || typeof fetch !== 'function') return false;
+    try { sessionStorage.setItem('jp_heal', '1'); } catch (e) { return false; }
+    const urls = [].slice.call(document.querySelectorAll('script[src], link[rel="stylesheet"]')).map(e => e.src || e.href).filter(u => u.indexOf(location.origin) === 0);
+    const ld = document.getElementById('loading');
+    if (ld) ld.innerHTML = '<div><b>กำลังอัปเดตไฟล์เกมเป็นเวอร์ชันล่าสุด…</b><span>รอสักครู่ เกมจะเปิดเองอีกครั้ง</span></div>';
+    Promise.all(urls.map(u => fetch(u, { cache: 'reload' }).catch(() => null))).then(() => location.reload());
+    return true;
+  }
   function boot() {
+    if (!hasCache || !Sim.attendeesOf) { if (healCache()) return; }
+    else { try { sessionStorage.removeItem('jp_heal'); } catch (e) { /* ใช้ไม่ได้ */ } }
     resize();
     window.addEventListener('resize', resize);
     // โหลดภาพ 3 มิติจาก Blender ก่อน (ถ้าไม่มีจะใช้ภาพที่วาดด้วยโค้ดแทน)
