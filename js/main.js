@@ -302,7 +302,7 @@
     if (!hintEl) {
       hintEl = document.createElement('div');
       hintEl.id = 'hint';
-      hintEl.innerHTML = '👆 <b>ลากนิ้วบนจอ</b> เพื่อเดิน<br><small>แตะพื้น = เดินไปตรงนั้น · แตะคน/ป้าย = คุย/ตรวจ</small>';
+      hintEl.innerHTML = '👆 <b>ลากนิ้วบนจอ</b> เพื่อเดิน<br><small><span>แตะพื้น = เดินไปตรงนั้น</span> · <span>แตะคน/ป้าย = คุย/ตรวจ</span></small>';
       document.body.appendChild(hintEl);
     }
     if (UI.isOpen()) return;
@@ -464,7 +464,7 @@
     for (const P of Sim.players()) {
       const near = Sim.npcs.filter(n => n.on && !n.inside_t && Math.hypot(P.x - n.x, P.y - n.y) < 80)
         .sort((a, b) => Math.hypot(P.x - a.x, P.y - a.y) - Math.hypot(P.x - b.x, P.y - b.y));
-      show = show.concat(near.filter(n => show.indexOf(n) < 0).slice(0, 2));
+      show = show.concat(near.filter(n => show.indexOf(n) < 0).slice(0, touch ? 1 : 2));   // มือถือ: ป้ายน้อยลง ฉากไม่รก
     }
     const boxes = [];
     for (const n of show) {

@@ -305,6 +305,7 @@ body.touch .meter .ic { font-size: 14px; margin: 0; }
 body.touch .meter b { position: static; margin-left: auto; font-size: 13px; }
 body.touch.hud-open #hud .row { flex-wrap: wrap; }
 body.touch.hud-open #h-guests, body.touch.hud-open #h-staff, body.touch.hud-open #h-safe { display: inline-block; }
+body.touch.hud-open #h-season { max-width: none !important; }
 body.touch.hud-open .meters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 body.touch.hud-open .meter .tx { display: inline; font-size: 12px; }
 
@@ -348,6 +349,7 @@ body.touch.playing #hint { display: block; position: fixed; left: 50%; bottom: c
   background: rgba(14,26,36,.92); border: 2px solid var(--accent); border-radius: 14px; padding: 10px 16px; font-size: 15px; line-height: 1.45;
   box-shadow: 0 8px 22px rgba(0,0,0,.4); animation: hintBob 1.6s ease-in-out infinite; transition: opacity .8s; }
 #hint small { color: var(--muted); font-size: 13px; }
+#hint small span { display: inline-block; white-space: nowrap; }
 #hint.fade { opacity: 0; }
 @keyframes hintBob { 50% { transform: translateX(-50%) translateY(-5px); } }
 
@@ -384,12 +386,6 @@ body.touch .mode.online .joinrow button { min-height: 46px; }
   body.touch:not(.rot) #h-season { max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
   body.touch:not(.rot) .meter { font-size: 12px; padding: 3px 4px 7px; }
 }
-/* มือถือแนวตั้งจอสั้น: ปุ่มด้านขวา 7 ปุ่มต้องไม่ชนแถบบน */
-@media (max-height: 640px) {
-  body.touch:not(.lands) #tools { gap: 7px; }
-  body.touch:not(.lands) #tools button { width: 44px; height: 44px; }
-  body.touch:not(.lands) #tools .ic { font-size: 19px; }
-}
 /* มือถือแนวนอน (จอเตี้ย): ทั้งหมุนมือถือจริง และตอนหมุนหน้าเกมเอง · main.js ใส่คลาส lands ให้ */
 body.touch.lands .meters { grid-template-columns: repeat(4, minmax(64px, 110px)); }
 body.touch.lands #feed { top: calc(64px + env(safe-area-inset-top)); }
@@ -410,3 +406,51 @@ body.touch.landpref #tools button[data-ui="land"] { background: var(--accent); }
 .landbtn { margin-left: auto; background: rgba(255,255,255,.1); color: var(--text); border: 1px solid rgba(255,255,255,.3); border-radius: 999px;
   padding: 7px 14px; font: 600 14px var(--font); cursor: pointer; min-height: 38px; }
 body.landpref .landbtn { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+
+/* ===================================================================
+   มือถือแนวตั้ง: แถบปุ่มด้านล่างแบบแอป (มีชื่อกำกับ) · ข่าวสั้นลง · จอย/ปุ่มคุยอยู่เหนือแถบ
+   =================================================================== */
+body.touch:not(.lands) #tools {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 4; width: auto;
+  display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 2px;
+  padding: 5px calc(6px + env(safe-area-inset-right)) calc(5px + env(safe-area-inset-bottom)) calc(6px + env(safe-area-inset-left));
+  background: rgba(13, 24, 34, .9); border-top: 1px solid rgba(255,255,255,.1); box-shadow: 0 -6px 18px rgba(0,0,0,.22);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+}
+body.touch:not(.lands) #tools button {
+  width: auto; height: 52px; padding: 0; border: 0; border-radius: 12px; background: transparent; box-shadow: none;
+  display: flex !important; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+}
+body.touch:not(.lands) #tools .ic { font-size: 21px; line-height: 1; margin: 0; }
+body.touch:not(.lands) #tools .tx { display: block; font-size: 11.5px; line-height: 1.15; color: #c9d6de; white-space: nowrap; }
+body.touch:not(.lands) #tools button:active { background: rgba(255,255,255,.1); }
+body.touch:not(.lands) #tools button[data-ui="full"] { display: none !important; }   /* เต็มจอย้ายไปอยู่ในเมนู */
+body.touch:not(.lands) #tools button[data-ui="menu"] { order: 9; }
+body.touch:not(.lands) #tools em { top: 2px; right: calc(50% - 24px); }
+body.touch.map-open:not(.lands) #tools button[data-ui="mapbtn"],
+body.touch.landpref:not(.lands) #tools button[data-ui="land"] { background: rgba(255,176,32,.18); }
+body.touch.map-open:not(.lands) #tools button[data-ui="mapbtn"] .tx,
+body.touch.landpref:not(.lands) #tools button[data-ui="land"] .tx { color: var(--accent); }
+body.touch:not(.lands) #joy { left: calc(18px + env(safe-area-inset-left)); bottom: calc(80px + env(safe-area-inset-bottom)); width: 120px; height: 120px; }
+body.touch:not(.lands) #stick { left: 35px; top: 35px; width: 50px; height: 50px; }
+body.touch:not(.lands) #act { right: calc(18px + env(safe-area-inset-right)); bottom: calc(84px + env(safe-area-inset-bottom)); width: 82px; height: 82px; }
+body.touch.playing:not(.lands) #hint { bottom: calc(222px + env(safe-area-inset-bottom)); }
+/* แถบบน: โปร่งขึ้นเล็กน้อย ไม่ทึบบังฉาก */
+body.touch:not(.lands) .chip, body.touch:not(.lands) .meter { background: rgba(13, 24, 34, .78); }
+body.touch:not(.lands) .chip.high { background: rgba(255, 176, 32, .92); }
+body.touch:not(.lands) .chip.low { background: rgba(76, 110, 140, .9); }
+/* ข่าว: กว้างเต็มจอ ข่าวล่าสุดไม่เกิน 2 บรรทัด ข่าวก่อนหน้า 1 บรรทัดจางลง */
+body.touch:not(.lands) #feed { top: calc(80px + env(safe-area-inset-top)); width: calc(var(--fw) - 16px); max-width: 560px; }
+body.touch.map-open:not(.lands) #feed { width: calc(var(--fw) - 210px); }
+body.touch:not(.lands) .feed-item { font-size: 13px; line-height: 1.45; padding: 6px 11px; border-radius: 10px; background: rgba(13, 24, 34, .8); }
+body.touch:not(.lands) .feed-item:first-child { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+body.touch:not(.lands) .feed-item:nth-child(2) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body.touch:not(.lands) .feed-item:nth-child(2):not(.fade) { opacity: .75; }
+@media (max-height: 600px) {
+  body.touch:not(.lands) #tools button { height: 46px; gap: 2px; }
+  body.touch:not(.lands) #tools .ic { font-size: 19px; }
+  body.touch:not(.lands) #joy { bottom: calc(70px + env(safe-area-inset-bottom)); width: 108px; height: 108px; }
+  body.touch:not(.lands) #stick { left: 31px; top: 31px; width: 46px; height: 46px; }
+  body.touch:not(.lands) #act { bottom: calc(74px + env(safe-area-inset-bottom)); width: 74px; height: 74px; }
+  body.touch.playing:not(.lands) #hint { bottom: calc(196px + env(safe-area-inset-bottom)); }
+}

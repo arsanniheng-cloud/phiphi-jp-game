@@ -73,8 +73,10 @@
     el.textContent = msg;
     feed.prepend(el);
     while (feed.children.length > 6) feed.lastChild.remove();
-    setTimeout(() => el.classList.add('fade'), 14000);
-    setTimeout(() => el.remove(), 15500);
+    // มือถือจอเล็ก: ข่าวหายเร็วขึ้น ฉากจะได้โล่ง
+    const life = document.body.classList.contains('touch') ? 9000 : 14000;
+    setTimeout(() => el.classList.add('fade'), life);
+    setTimeout(() => el.remove(), life + 1500);
   }
   function meter(id, v) {
     const el = $(id);
@@ -86,10 +88,12 @@
     const S = Sim.S;
     document.body.classList.toggle('playing', !!S);
     if (!S) return;
-    const s = Sim.season();
-    $('h-date').textContent = 'วันที่ ' + (S.day + 1) + ' · ' + Sim.dateText(S.day);
+    const s = Sim.season(), bc = document.body.classList;
+    // มือถือแนวตั้ง: ข้อความแถบบนสั้นลง (แตะแถบเพื่อดูเต็ม)
+    const compact = bc.contains('touch') && !bc.contains('lands') && !bc.contains('hud-open');
+    $('h-date').textContent = 'วันที่ ' + (S.day + 1) + ' · ' + (compact ? Sim.dateText(S.day).replace(/ \d{4}$/, '') : Sim.dateText(S.day));
     $('h-time').textContent = '🕒 ' + Sim.timeText();
-    $('h-season').textContent = (s.weather_condition === 'sunny' ? '☀️ ' : '🌧️ ') + s.label + ' · คลื่น ' + s.sea_wave_height_meters + ' ม.';
+    $('h-season').textContent = (s.weather_condition === 'sunny' ? '☀️ ' : '🌧️ ') + s.label + (compact ? '' : ' · คลื่น ' + s.sea_wave_height_meters + ' ม.');
     $('h-season').className = 'chip ' + (Sim.isHigh() ? 'high' : 'low');
     $('h-guests').textContent = '🧳 แขก ' + (S.tourist_count !== undefined ? S.tourist_count : S.tourists.length) + ' คน';
     const onCount = S.on_count !== undefined ? S.on_count : Sim.npcs.filter(n => n.on).length;
@@ -361,15 +365,18 @@
   }
 
   // ------------------------------------------------------------------ menu / intro / help
+  // มือถือ: ปุ่มหน้าจอ (เต็มจอ / แนวนอน) อยู่บนสุดของเมนู
+  const screenRow = () => (document.body.classList.contains('touch')
+    ? '<div class="actions grid2"><button data-act="m:full">⛶ เต็มจอ</button><button data-act="land">' + landLabel() + '</button></div>' : '');
   function menuPanel(msg) {
     if (isClient()) {
-      open(head('☰ เมนู') + (msg ? '<div class="note">' + esc(msg) + '</div>' : '') +
+      open(head('☰ เมนู') + (msg ? '<div class="note">' + esc(msg) + '</div>' : '') + screenRow() +
         '<div class="actions grid2"><button data-act="room">🌐 ข้อมูลห้อง</button><button data-act="m:help">❓ วิธีเล่น</button>' +
         '<button data-act="leave" class="danger">🚪 ออกจากห้อง</button></div>' +
         '<p class="muted">คุณเป็นผู้ร่วมเล่น การบันทึกและส่งออกข้อมูลทำที่เครื่องเจ้าของห้อง</p>');
       return;
     }
-    open(head('☰ เมนู') + (msg ? '<div class="note">' + esc(msg) + '</div>' : '') +
+    open(head('☰ เมนู') + (msg ? '<div class="note">' + esc(msg) + '</div>' : '') + screenRow() +
       (NetX() ? '<div class="actions"><button data-act="room" class="primary">🌐 รหัสห้อง ' + esc(root.Net.room) + ' · ผู้เล่น ' + Sim.players().length + ' คน</button></div>' : '') +
       '<div class="actions grid2">' +
       '<button data-act="m:save">💾 บันทึกเกม</button><button data-act="m:load">📂 โหลดเกมที่บันทึก</button>' +
@@ -398,7 +405,7 @@
     const invite = root.Net ? root.Net.cleanCode((location.hash.match(/join=(\w{6})/) || [])[1]) : '';
     const inApp = /\bLine\/|FBAN|FBAV|Instagram/i.test(navigator.userAgent);
     open('<div class="intro"><div class="topline"><div class="badge">เกมจำลองงาน จป.วิชาชีพ</div>' +
-      (touch ? '<button data-act="land" class="landbtn">' + landLabel() + '</button>' : '') + '</div><h1>จป.ซัน แห่งเกาะพีพี</h1>' +
+      (touch ? '<button data-act="land" class="landbtn">' + landLabel(true) + '</button>' : '') + '</div><h1>จป.ซัน แห่งเกาะพีพี</h1>' +
       (invite ? '<div class="note invite">🎟️ คุณได้รับเชิญเข้าห้อง <b>' + esc(invite) + '</b> — ใส่ชื่อของคุณ แล้วกด <b>เข้าร่วม</b> ในการ์ดเล่นออนไลน์</div>' : '') +
       (inApp ? '<div class="note">ℹ️ ถ้าเปิดจาก LINE แล้วเล่นออนไลน์ไม่ได้ ให้แตะ ⋮ หรือปุ่มแชร์ แล้วเลือก "เปิดในเบราว์เซอร์" (Chrome/Safari)</div>' : '') +
       '<p class="lead">คุณคือ <b>จป.วิชาชีพ</b> ของรีสอร์ตริมอ่าวบนเกาะพีพี ดูแลพนักงาน <b>204 คน</b> 12 แผนก และแขกที่หมุนเวียนตามฤดูกาล ' +
@@ -536,6 +543,7 @@
     else if (v === 'import') $('file-import').click();
     else if (v === 'season') { Sim.toggleSeason(); close(true); }
     else if (v === 'help') helpPanel();
+    else if (v === 'full') { close(true); toggleFullscreen(); }
     else if (v === 'new') open(head('🔄 เริ่มเกมใหม่?') + '<p>ความคืบหน้าที่ยังไม่บันทึกจะหายไป</p><div class="actions"><button data-act="m:newconfirm" class="danger">ยืนยัน เริ่มใหม่</button><button data-act="m:menu" class="ghost">ยกเลิก</button></div>');
     else if (v === 'newconfirm') { close(true); intro(null); }
     else if (v === 'menu') menuPanel();
@@ -624,11 +632,11 @@
   }
   // สลับเล่นแนวนอน/แนวตั้ง (main.js เป็นคนหมุนหน้าเกม)
   const landOn = () => !!(root.GameView && root.GameView.isLand());
-  const landLabel = () => (landOn() ? '📱 กลับเป็นแนวตั้ง' : '🔄 เล่นแนวนอน (ตะแคงมือถือ)');
+  const landLabel = short => (landOn() ? '📱 กลับเป็นแนวตั้ง' : short ? '🔄 เล่นแนวนอน' : '🔄 เล่นแนวนอน (ตะแคงมือถือ)');
   function toggleLand() {
     if (!root.GameView) return;
     root.GameView.toggleLand();
-    document.querySelectorAll('[data-act="land"]').forEach(b => { b.textContent = landLabel(); });
+    document.querySelectorAll('[data-act="land"]').forEach(b => { b.textContent = landLabel(b.classList.contains('landbtn')); });
     log(landOn() ? '🔄 แนวนอน: ตะแคงมือถือได้เลย (ไม่ต้องเปิดหมุนจออัตโนมัติ) · กดปุ่ม 🔄 อีกครั้งเพื่อกลับแนวตั้ง' : '📱 กลับเป็นแนวตั้งแล้ว', 'info');
   }
   function fullscreenHint() {
