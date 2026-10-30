@@ -41,6 +41,7 @@
     if (locked && !force) return;
     $('panel').classList.add('hidden');
     locked = false; ctx = null;
+    if (root.Scene) root.Scene.stop();              // หยุดวาดฉากประชุม/อบรม
     const S = Sim.S;
     if (S && !S.over && !S.ending && !isClient()) Sim.paused = false;
   }
@@ -596,11 +597,23 @@
       (today.length ? '<div class="note">📅 นัดวันนี้: ' + today.map(a => esc(a.title) + ' ' + Sim.timeText(a.scheduled_hour) + ' น.').join(' · ') + '</div>' : '') +
       '<div class="actions"><button data-act="close" class="ghost">ข้ามไปก่อน (เลือกทีหลังได้ที่ 📅 แผนงาน)</button></div>');
   }
+  // ฉากประชุม/อบรม (js/scene*.js): ภาพจำลองอยู่ด้านบนของหน้าต่าง ผลการตอบสั่งให้ตัวละครในฉากขยับ
+  // ถ้าไฟล์ฉากโหลดไม่สำเร็จ หน้าต่างยังใช้งานได้ตามปกติ (แค่ไม่มีภาพ)
+  const STAGE = '<div class="stagebox" id="stage-slot"></div>';
+  let stageCtl = null;
+  function stageMount(kind, a, fresh) {
+    const SC = root.Scene;
+    stageCtl = SC && SC.KINDS && SC.KINDS[kind] && $('stage-slot') ? SC.open(kind, { act: a, hour: a && a.scheduled_hour, fresh: !!fresh }, $('stage-slot')) : null;
+    return stageCtl;
+  }
   function activityPanel(a) {
     if (!a || a.status !== 'due') return;
     if (isClient()) {
-      open(head(ACT_ICON[a.activity_type] + ' ' + esc(a.title)) + '<p>เจ้าของห้องเป็นผู้เปิด' + (a.activity_type === 'kpo_meeting' ? 'ประชุม' : 'อบรม') +
-        ' คุณยืนร่วมฟังที่นี่ได้</p><div class="actions"><button data-act="close" class="primary">ตกลง</button></div>');
+      const kind = a.activity_type === 'kpo_meeting' ? 'KPO' : a.topic_code;
+      open(head(ACT_ICON[a.activity_type] + ' ' + esc(a.title)) + '<div class="actv">' + STAGE + '<div class="actv-body"><p>เจ้าของห้องเป็นผู้เปิด' + (a.activity_type === 'kpo_meeting' ? 'ประชุม' : 'อบรม') +
+        ' คุณยืนร่วมฟังที่นี่ได้</p><div class="actions"><button data-act="close" class="primary">ตกลง</button></div></div></div>', { wide: true });
+      const ctl = stageMount(kind, a, true);
+      if (ctl) ctl.caption(a.activity_type === 'kpo_meeting' ? 'เจ้าของห้องกำลังเปิดประชุม' : 'เจ้าของห้องกำลังสอน');
       return;
     }
     if (a.activity_type === 'kpo_meeting') kpoPanel(a); else quizStart(a);
@@ -611,23 +624,45 @@
     const names = p.effect.hazard_codes.map(c => { const t = G.hazard_types.find(h => h.code === c); return t ? t.title : ''; }).filter(Boolean);
     return 'ลดโอกาสเกิด: ' + names.join(' / ') + (p.effect.ppe ? ' · พนักงานสวม PPE ดีขึ้น' : '');
   }
+  let kpoSt = null;
   function kpoPanel(a) {
     ctx = { type: 'activity', obj: a };
     const g = Sim.kpoAgenda(a), st = g.stats, top = Sim.DEPT[g.top_dept];
-    open(head('🏛️ ประชุม คปอ. ประจำเดือน') +
+    kpoSt = st;
+    open(head('🏛️ ประชุม คปอ. ประจำเดือน') + '<div class="actv">' + STAGE + '<div class="actv-body">' +
       '<div class="sub">ผู้แทนมาประชุม ' + num(g.attendees) + ' คน · ' + esc(Sim.dateText(Sim.S.day)) + ' · คุณเป็นกรรมการและเลขานุการ คปอ. (จป.วิชาชีพ) นำเสนอวาระ</div>' +
       '<h3 class="sec">วาระที่ 1 ผลการดำเนินงาน' + (st.since_day >= 0 ? 'ตั้งแต่ประชุมครั้งก่อน' : '') + '</h3>' +
       '<div class="grid-stats">' + stat('พบจุดเสี่ยง', st.found) + stat('แก้ไขแล้ว', st.closed) + stat('อุบัติเหตุ', st.incidents) + stat('หยุดงาน (LTI)', st.lti) + '</div>' +
       '<p class="muted">ยังเปิดอยู่ ' + num(st.open_known) + ' จุด (ออก CAR แล้ว ' + num(st.open_car) + ') · แผนกที่ต้องเฝ้าระวังมากที่สุด: <b>' + esc(top ? top.short : '-') + '</b></p>' +
       '<h3 class="sec">วาระที่ 2 ข้อเสนอจากผู้แทนลูกจ้าง</h3><p class="muted">เลือกเรื่องที่จะเสนอให้ที่ประชุมอนุมัติ (ใช้งบความปลอดภัยของเดือนนี้)</p><div class="kpo-props">' +
-      g.proposals.map(p => '<label class="prop"><input type="checkbox" data-kpo="' + esc(p.code) + '" data-cost="' + num(p.cost) + '">' +
+      g.proposals.map(p => '<label class="prop"><input type="checkbox" data-kpo="' + esc(p.code) + '" data-cost="' + num(p.cost) + '" data-dept="' + num(p.department_id) + '">' +
         '<span><b>' + esc(p.title) + '</b><small>' + esc(Sim.DEPT[p.department_id].short) + ' · <b>' + num(p.cost).toLocaleString() + ' บาท</b> · ' + esc(propEffect(p)) + '</small></span></label>').join('') +
       (st.open_car ? '<label class="prop"><input type="checkbox" data-kpo="RUSH" data-cost="' + num(st.open_car * 5000) + '"><span><b>เร่งปิด CAR ที่ค้าง ' + num(st.open_car) + ' เรื่อง</b>' +
         '<small><b>' + num(st.open_car * 5000).toLocaleString() + ' บาท</b> · แก้จุดเสี่ยงที่ออก CAR ไว้ให้เสร็จทันที</small></span></label>' : '') +
       '</div><div id="kpo-total" class="kpo-total"></div>' +
       '<p class="muted">ข้อที่ไม่อนุมัติ ผู้แทนแผนกนั้นจะผิดหวังและจำไว้ · ข้อที่อนุมัติจะลดโอกาสเกิดจุดเสี่ยงนั้นตลอดเกม</p>' +
-      '<div class="actions"><button data-act="kpo:done" class="primary">✅ ปิดประชุมและบันทึกมติ</button></div>', { wide: true });
+      '<div class="actions"><button data-act="kpo:done" class="primary">✅ ปิดประชุมและบันทึกมติ</button></div></div></div>', { wide: true });
+    const ctl = stageMount('KPO', a, true);
+    if (ctl) { ctl.board({ mode: 'stats', found: st.found, closed: st.closed, incidents: st.incidents, lti: st.lti }); ctl.caption('วาระที่ 1 · ผลการดำเนินงาน'); }
     kpoTotal();
+  }
+  // ติ๊กข้อเสนอ → ผู้แทนแผนกนั้นยกมือเสนอในห้องประชุม และกระดานแสดงรายการที่เลือก
+  function kpoStageSync(inp) {
+    const ctl = stageCtl, S = Sim.S;
+    if (!ctl || !S || !S.budget) return;
+    const items = [];
+    let total = 0;
+    document.querySelectorAll('.kpo-props input[data-kpo]').forEach(i => {
+      if (!i.checked) return;
+      total += +i.dataset.cost || 0;
+      const b = i.closest('label').querySelector('b');
+      items.push({ title: b ? b.textContent : '' });
+    });
+    const st = kpoSt || { found: 0, closed: 0, incidents: 0, lti: 0 };
+    ctl.board(items.length ? { mode: 'props', items, total, budget: S.budget.left } : { mode: 'stats', found: st.found, closed: st.closed, incidents: st.incidents, lti: st.lti });
+    ctl.caption(items.length ? 'วาระที่ 2 · ข้อเสนอจากผู้แทนลูกจ้าง' : 'วาระที่ 1 · ผลการดำเนินงาน');
+    if (inp && inp.checked) { const b = inp.closest('label').querySelector('b'); ctl.focus(+inp.dataset.dept || 0, b ? b.textContent : ''); }
+    else ctl.clearFocus();
   }
   function kpoTotal() {
     const S = Sim.S, el = $('kpo-total');
@@ -640,15 +675,17 @@
     const btn = document.querySelector('[data-act="kpo:done"]');
     if (btn) btn.disabled = over;
   }
-  function kpoResult(r) {
-    open('<div class="result good">' + head('🏛️ บันทึกมติ คปอ. แล้ว') +
+  function kpoResult(r, a) {
+    open('<div class="result good">' + head('🏛️ บันทึกมติ คปอ. แล้ว') + '<div class="actv">' + STAGE + '<div class="actv-body">' +
       (r.approved.length ? '<p>✅ อนุมัติ: ' + r.approved.map(esc).join(' · ') + '</p>' : '<p>รอบนี้ไม่มีข้อเสนอที่อนุมัติ</p>') +
       (r.deferred.length ? '<p class="muted">⏳ เลื่อนไปก่อน: ' + r.deferred.map(esc).join(' · ') + '</p>' : '') +
       (r.rushed ? '<p>📋 เร่งปิด CAR แล้ว ' + num(r.rushed) + ' เรื่อง</p>' : '') +
       '<div class="effects"><span class="eff up">ความน่าเชื่อถือ +' + num(r.rep) + '</span><span class="eff">ใช้งบ ' + num(r.spent).toLocaleString() + ' บาท</span>' +
       '<span class="eff">งบเหลือ ' + num(r.budget_left).toLocaleString() + ' บาท</span></div>' +
       '<p class="why">📘 สถานประกอบกิจการที่มีลูกจ้าง 50 คนขึ้นไปต้องมี คปอ. และต้องประชุมอย่างน้อยเดือนละครั้ง การอนุมัติงบตามข้อเสนอของผู้แทนลูกจ้างทำให้พนักงานเชื่อมั่นว่าเรื่องที่แจ้งได้รับการแก้จริง</p>' +
-      '<div class="actions"><button data-act="close" class="primary">กลับไปทำงาน</button></div></div>');
+      '<div class="actions"><button data-act="close" class="primary">กลับไปทำงาน</button></div></div></div></div>', { wide: true });
+    const ctl = stageMount('KPO', a, false);
+    if (ctl) ctl.caption(r.approved.length ? 'มติที่ประชุม: อนุมัติ ' + r.approved.length + ' เรื่อง' : 'มติที่ประชุม: เลื่อนไปก่อน');
   }
 
   // ---- อบรมพนักงาน: จป. เป็นวิทยากร ตอบคำถามทบทวนให้ถูกเพื่ออธิบายให้พนักงานเข้าใจ
@@ -656,32 +693,45 @@
   function quizStart(a) {
     const r = Sim.trainingQuiz(a);
     if (!r) return;
-    quiz = { a, qs: r.questions, i: 0, correct: 0, answered: -1, n: r.attendees };
+    quiz = { a, qs: r.questions, i: -1, correct: 0, answered: -1, n: r.attendees, first: true };      // i = -1: ฉากเปิดอบรม (ยังไม่ถามข้อแรก)
     ctx = { type: 'activity', obj: a };
     quizPanel();
   }
   function quizPanel() {
-    const q = quiz.qs[quiz.i], done = quiz.answered >= 0, right = done && quiz.answered === q.answer;
-    let html = head('📚 ' + esc(quiz.a.title)) +
-      '<div class="sub">ผู้เข้าอบรม ' + num(quiz.n) + ' คน · คำถามทบทวนข้อ ' + (quiz.i + 1) + '/' + quiz.qs.length + ' · ตอบถูกแล้ว ' + quiz.correct + ' ข้อ</div>' +
-      '<p class="muted">คุณเป็นวิทยากร เลือกคำตอบที่จะอธิบายให้พนักงานฟัง</p>' +
-      '<div class="bubble">🙋 ' + esc(q.q) + '</div><div class="actions quiz">' +
-      q.choices.map((c, i) => '<button data-act="quiz:ans:' + i + '"' + (done ? ' disabled' : '') +
-        ' class="' + (done ? (i === q.answer ? 'right' : i === quiz.answered ? 'wrong' : '') : '') + '">' + ['ก', 'ข', 'ค', 'ง'][i] + '. ' + esc(c) + '</button>').join('') + '</div>';
-    if (done) {
-      html += '<div class="verdict' + (right ? ' good' : '') + '">' + (right ? '✅ ถูกต้อง' : '❌ ยังไม่ถูก') + ' — ' + esc(q.explain) + '</div>' +
-        '<div class="actions"><button data-act="quiz:next" class="primary">' + (quiz.i + 1 < quiz.qs.length ? 'ข้อต่อไป ▶' : '🎓 สรุปผลการอบรม') + '</button></div>';
+    const intro = quiz.i < 0, q = intro ? null : quiz.qs[quiz.i], done = !intro && quiz.answered >= 0, right = done && quiz.answered === q.answer;
+    let body;
+    if (intro) {
+      body = '<div class="sub">ผู้เข้าอบรม ' + num(quiz.n) + ' คน · คำถามทบทวน ' + quiz.qs.length + ' ข้อ</div>' +
+        '<p>คุณเป็นวิทยากร ดูฉากสาธิตแล้วเลือกคำตอบที่ถูกต้องในแต่ละข้อ ผู้เข้าอบรมจะตอบรับตามคำตอบของคุณ และหลังตอบจะมีสาธิตวิธีที่ถูกให้ดู</p>' +
+        '<div class="actions"><button data-act="quiz:start" class="primary">▶ เริ่มอบรม</button></div>';
+    } else {
+      body = '<div class="sub">ผู้เข้าอบรม ' + num(quiz.n) + ' คน · คำถามทบทวนข้อ ' + (quiz.i + 1) + '/' + quiz.qs.length + ' · ตอบถูกแล้ว ' + quiz.correct + ' ข้อ</div>' +
+        '<p class="muted">คุณเป็นวิทยากร เลือกคำตอบที่จะอธิบายให้พนักงานฟัง</p>' +
+        '<div class="bubble">🙋 ' + esc(q.q) + '</div><div class="actions quiz">' +
+        q.choices.map((c, i) => '<button data-act="quiz:ans:' + i + '"' + (done ? ' disabled' : '') +
+          ' class="' + (done ? (i === q.answer ? 'right' : i === quiz.answered ? 'wrong' : '') : '') + '">' + ['ก', 'ข', 'ค', 'ง'][i] + '. ' + esc(c) + '</button>').join('') + '</div>';
+      if (done) {
+        body += '<div class="verdict' + (right ? ' good' : '') + '">' + (right ? '✅ ถูกต้อง' : '❌ ยังไม่ถูก') + ' — ' + esc(q.explain) + '</div>' +
+          '<div class="actions"><button data-act="quiz:next" class="primary">' + (quiz.i + 1 < quiz.qs.length ? 'ข้อต่อไป ▶' : '🎓 สรุปผลการอบรม') + '</button></div>';
+      }
     }
-    open(html);
+    open(head('📚 ' + esc(quiz.a.title)) + '<div class="actv">' + STAGE + '<div class="actv-body">' + body + '</div></div>', { wide: true });
+    const ctl = stageMount(quiz.a.topic_code, quiz.a, quiz.first);
+    quiz.first = false;
+    if (ctl) { if (intro) ctl.caption((Sim.TOPIC[quiz.a.topic_code] || {}).title || ''); else if (done) ctl.reveal(right); else ctl.demo(q.show); }
+    if (done) { const nb = document.querySelector('[data-act="quiz:next"]'); if (nb && nb.scrollIntoView) nb.scrollIntoView({ block: 'nearest' }); }
   }
-  function trainResult(r) {
-    const grade = r.correct === r.total ? 'ดีเยี่ยม' : r.correct * 2 >= r.total ? 'ดี' : 'ควรทบทวนเนื้อหาก่อนสอนครั้งหน้า';
-    open('<div class="result good">' + head('🎓 อบรมเสร็จแล้ว: ' + esc(r.topic)) +
+  function trainResult(r, kind, a) {
+    const good = r.correct * 2 >= r.total;
+    const grade = r.correct === r.total ? 'ดีเยี่ยม' : good ? 'ดี' : 'ควรทบทวนเนื้อหาก่อนสอนครั้งหน้า';
+    open('<div class="result good">' + head('🎓 อบรมเสร็จแล้ว: ' + esc(r.topic)) + '<div class="actv">' + STAGE + '<div class="actv-body">' +
       '<p>แผนก' + esc(r.dept) + ' · ผู้เข้าอบรม ' + num(r.attendees) + ' คน · ตอบถูก ' + num(r.correct) + '/' + num(r.total) + ' ข้อ (' + grade + ')</p>' +
       '<div class="effects"><span class="eff up">ความรู้ของแผนก +' + num(r.gain) + '</span><span class="eff up">ความน่าเชื่อถือ +' + num(r.rep) + '</span>' +
       '<span class="eff up">ผู้เข้าอบรมไว้ใจและทำตามกฎมากขึ้น</span></div>' +
       '<p class="why">📘 จุดเสี่ยงที่เกี่ยวกับหัวข้อนี้ในแผนก' + esc(r.dept) + 'จะเกิดน้อยลงตลอดเกม และพนักงานที่มาอบรมจะจำได้ว่าคุณสอนเรื่องนี้</p>' +
-      '<div class="actions"><button data-act="close" class="primary">กลับไปทำงาน</button></div></div>');
+      '<div class="actions"><button data-act="close" class="primary">กลับไปทำงาน</button></div></div></div></div>', { wide: true });
+    const ctl = stageMount(kind, a, false);
+    if (ctl) { ctl.finish(good); ctl.caption(good ? '🎓 ผ่านการอบรม' : 'ควรทบทวนเนื้อหาอีกครั้ง'); }
   }
 
   // ------------------------------------------------------------------ online
@@ -890,22 +940,36 @@
         const pick = [];
         let rush = false;
         document.querySelectorAll('.kpo-props input[data-kpo]').forEach(i => { if (i.checked) { if (i.dataset.kpo === 'RUSH') rush = true; else pick.push(i.dataset.kpo); } });
-        const r = Sim.finishKpo(ctx.obj, pick, rush);
-        if (r.err) { close(true); log(r.err, 'warn'); } else kpoResult(r);
+        const kpoAct = ctx.obj;
+        const r = Sim.finishKpo(kpoAct, pick, rush);
+        if (r.err) { close(true); log(r.err, 'warn'); break; }
+        const ctl = stageCtl;
+        if (!ctl) { kpoResult(r, kpoAct); break; }
+        // ลงมติยกมือในห้องประชุม (ราว 2.6 วินาที) แล้วจึงแสดงสรุปมติ
+        document.querySelectorAll('#card button').forEach(b => { b.disabled = true; });
+        locked = true;
+        ctl.board({ mode: 'result', n: r.approved.length, t: ctl.now() });
+        ctl.caption('ที่ประชุมลงมติ…');
+        ctl.vote(r.approved.length, r.approved.length + r.deferred.length).then(() => {
+          locked = false;
+          if (isOpen() && ctx && ctx.obj === kpoAct) kpoResult(r, kpoAct);
+        });
         break;
       }
       case 'quiz': {
         if (!quiz || !ctx || ctx.type !== 'activity') break;
-        if (v === 'ans' && quiz.answered < 0) {
+        if (v === 'start' && quiz.i < 0) { quiz.i = 0; quiz.answered = -1; quizPanel(); }
+        else if (v === 'ans' && quiz.i >= 0 && quiz.answered < 0) {
           quiz.answered = +w;
           if (quiz.answered === quiz.qs[quiz.i].answer) quiz.correct++;
           quizPanel();
         } else if (v === 'next' && quiz.answered >= 0) {
           if (quiz.i + 1 < quiz.qs.length) { quiz.i++; quiz.answered = -1; quizPanel(); }
           else {
-            const r = Sim.finishTraining(quiz.a, quiz.correct);
+            const act = quiz.a, kind = act.topic_code;
+            const r = Sim.finishTraining(act, quiz.correct);
             quiz = null;
-            if (r.err) { close(true); log(r.err, 'warn'); } else trainResult(r);
+            if (r.err) { close(true); log(r.err, 'warn'); } else trainResult(r, kind, act);
           }
         }
         break;
@@ -973,7 +1037,7 @@
     });
     $('h-focus').addEventListener('click', () => { if (Sim.S && !Sim.S.over && !isOpen()) planPanel(); });
     // ประชุม คปอ.: ติ๊กเลือกข้อเสนอแล้วคำนวณงบรวมทันที
-    $('panel').addEventListener('change', e => { if (e.target.closest('.kpo-props')) kpoTotal(); });
+    $('panel').addEventListener('change', e => { if (e.target.closest('.kpo-props')) { kpoTotal(); kpoStageSync(e.target.closest('input')); } });
     $('file-import').addEventListener('change', e => {
       const f = e.target.files[0]; if (!f) return;
       const rd = new FileReader();

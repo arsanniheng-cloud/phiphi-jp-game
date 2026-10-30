@@ -648,7 +648,7 @@
     return view;
   }
 
-  let lastView = null, slowT = 0;
+  let lastView = null, slowT = 0, idleN = 0;
   function frame(now) {
     const raw = (now - last) / 1000;
     const dt = Math.min(0.05, raw); last = now;
@@ -664,7 +664,8 @@
     }
     if (window.Net) window.Net.tick(dt);
     hint(dt);
-    lastView = render(t, dt);
+    // เปิดหน้าต่างค้างไว้ตอนเล่นคนเดียว (โลกหยุดนิ่ง): วาดโลกเบื้องหลังแค่ 1 ใน 3 เฟรม ให้เครื่องเหลือแรงไปวาดฉากประชุม/อบรม
+    if (UI.isOpen() && Sim.paused && !netOn() && lastView && (++idleN % 3)) { /* ข้ามเฟรมนี้ */ } else lastView = render(t, dt);
     hudT -= dt;
     if (hudT <= 0) { hudT = 0.2; UI.hud(); UI.prompt(targets); drawMini(lastView, Sim.S); }
     requestAnimationFrame(frame);
