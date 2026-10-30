@@ -537,10 +537,24 @@
     }
     return o;
   }
-  function hourOpts(sel) {
+  function hourOpts(sel, last) {
     let o = '';
-    for (let h = C.time.start_hour + 1; h <= C.time.end_hour - 2; h += 0.5) o += '<option value="' + h + '"' + (h === sel ? ' selected' : '') + '>' + Sim.timeText(h) + ' น.</option>';
+    if (last === undefined) last = C.time.end_hour - 2;
+    for (let h = C.time.start_hour + 1; h <= last; h += 0.5) o += '<option value="' + h + '"' + (h === sel ? ' selected' : '') + '>' + Sim.timeText(h) + ' น.</option>';
     return o;
+  }
+  // หัวข้ออบรมที่เป็นหลักสูตรยาว (เช่น 6 ชั่วโมง) ต้องเริ่มเร็วพอให้จบก่อนสิ้นวัน และมีข้อความอธิบายผลที่ตามมา
+  function trainNote(code) {
+    const t = Sim.TOPIC[code];
+    return t && t.hours ? '⏱️ หลักสูตร ' + t.hours + ' ชั่วโมง ใช้เวลาเรียนจริงในเกม ' + t.hours + ' ชั่วโมง ผู้เข้าอบรมจะไม่อยู่หน้างานตลอดเวลานั้น งานบริการลดลง แต่ความรู้ ความไว้ใจ และการสวม PPE ดีขึ้นมาก จุดเสี่ยงทุกประเภทของแผนกลดลง' : '';
+  }
+  function trainFormSync() {
+    const sel = $('pt-topic'), hr = $('pt-hour');
+    if (!sel || !hr) return;
+    const t = Sim.TOPIC[sel.value], last = C.time.end_hour - ((t && t.hours) || 2), cur = +hr.value || 14;
+    hr.innerHTML = hourOpts(Math.min(cur, last), last);
+    const n = $('pt-note');
+    if (n) n.textContent = trainNote(sel.value);
   }
   function focusButtons() {
     return '<div class="actions big focus-list">' + G.daily_focus.map(f => '<button data-act="focus:' + f.code + '"><b>' + f.icon + ' ' + esc(f.title) + '</b><small>' + esc(f.desc) + '</small></button>').join('') + '</div>';
@@ -576,9 +590,10 @@
         '<div class="plan-form"><b>📚 อบรมพนักงาน</b><div class="frow"><select id="pt-dept" aria-label="แผนก">' +
         G.departments.map(d => '<option value="' + d.id + '">' + esc(d.short) + '</option>').join('') + '</select>' +
         '<select id="pt-topic" aria-label="หัวข้ออบรม">' + G.training_topics.map(t => '<option value="' + t.code + '">' + t.icon + ' ' + esc(t.title) + '</option>').join('') + '</select></div>' +
-        '<div class="frow"><select id="pt-day" aria-label="วันอบรม">' + dayOpts(S.day) + '</select><select id="pt-hour" aria-label="เวลาอบรม">' + hourOpts(14) + '</select>' +
+        '<div class="frow"><select id="pt-day" aria-label="วันอบรม">' + dayOpts(S.day) + '</select><select id="pt-hour" aria-label="เวลาอบรม">' + hourOpts(14, C.time.end_hour - ((Sim.TOPIC[G.training_topics[0].code] || {}).hours || 2)) + '</select>' +
         '<button data-act="plan:train" class="primary">นัดอบรม</button></div>' +
-        '<small class="muted">พนักงานแผนกนั้นที่อยู่ในกะจะมาที่โรงอาหาร คุณเป็นวิทยากร ตอบคำถามทบทวนให้ถูกเพื่อให้การอบรมได้ผล</small></div>';
+        '<small class="muted">พนักงานแผนกนั้นที่อยู่ในกะจะมาที่โรงอาหาร คุณเป็นวิทยากร ตอบคำถามทบทวนให้ถูกเพื่อให้การอบรมได้ผล</small>' +
+        '<small id="pt-note" class="muted">' + esc(trainNote(G.training_topics[0].code)) + '</small></div>';
     }
     html += '<h3 class="sec">💰 งบความปลอดภัยเดือนนี้</h3><div class="budget">' + bar(S.budget ? S.budget.left / S.budget.total * 100 : 0, 'amber') +
       ' <b>' + num(S.budget && S.budget.left).toLocaleString() + '</b> / ' + num(S.budget && S.budget.total).toLocaleString() + ' บาท</div>' +
@@ -699,10 +714,13 @@
   }
   function quizPanel() {
     const intro = quiz.i < 0, q = intro ? null : quiz.qs[quiz.i], done = !intro && quiz.answered >= 0, right = done && quiz.answered === q.answer;
+    const tp = Sim.TOPIC[quiz.a.topic_code];
     let body;
     if (intro) {
-      body = '<div class="sub">ผู้เข้าอบรม ' + num(quiz.n) + ' คน · คำถามทบทวน ' + quiz.qs.length + ' ข้อ</div>' +
+      const hrs = (tp || {}).hours || 0;
+      body = '<div class="sub">ผู้เข้าอบรม ' + num(quiz.n) + ' คน · คำถามทบทวน ' + quiz.qs.length + ' ข้อ' + (hrs ? ' · หลักสูตร ' + hrs + ' ชั่วโมง' : '') + '</div>' +
         '<p>คุณเป็นวิทยากร ดูฉากสาธิตแล้วเลือกคำตอบที่ถูกต้องในแต่ละข้อ ผู้เข้าอบรมจะตอบรับตามคำตอบของคุณ และหลังตอบจะมีสาธิตวิธีที่ถูกให้ดู</p>' +
+        (hrs ? '<div class="note">⏱️ หลักสูตรนี้ใช้เวลา ' + hrs + ' ชั่วโมง ผู้เข้าอบรมจะอยู่ในห้องอบรมต่อจนถึงประมาณ ' + Sim.timeText(Math.min(C.time.end_hour, Sim.S.hour + hrs)) + ' น. งานบริการจะลดลงระหว่างนี้</div>' : '') +
         '<div class="actions"><button data-act="quiz:start" class="primary">▶ เริ่มอบรม</button></div>';
     } else {
       body = '<div class="sub">ผู้เข้าอบรม ' + num(quiz.n) + ' คน · คำถามทบทวนข้อ ' + (quiz.i + 1) + '/' + quiz.qs.length + ' · ตอบถูกแล้ว ' + quiz.correct + ' ข้อ</div>' +
@@ -728,7 +746,8 @@
       '<p>แผนก' + esc(r.dept) + ' · ผู้เข้าอบรม ' + num(r.attendees) + ' คน · ตอบถูก ' + num(r.correct) + '/' + num(r.total) + ' ข้อ (' + grade + ')</p>' +
       '<div class="effects"><span class="eff up">ความรู้ของแผนก +' + num(r.gain) + '</span><span class="eff up">ความน่าเชื่อถือ +' + num(r.rep) + '</span>' +
       '<span class="eff up">ผู้เข้าอบรมไว้ใจและทำตามกฎมากขึ้น</span></div>' +
-      '<p class="why">📘 จุดเสี่ยงที่เกี่ยวกับหัวข้อนี้ในแผนก' + esc(r.dept) + 'จะเกิดน้อยลงตลอดเกม และพนักงานที่มาอบรมจะจำได้ว่าคุณสอนเรื่องนี้</p>' +
+      (r.hours ? '<div class="note">⏱️ หลักสูตร ' + num(r.hours) + ' ชั่วโมง: ผู้เข้าอบรมอยู่ในห้องอบรมต่อจนถึง ' + Sim.timeText(num(r.until)) + ' น. (งานบริการลดลงระหว่างนี้) แล้วจึงกลับเข้างาน</div>' : '') +
+      '<p class="why">📘 ' + (((Sim.TOPIC[a && a.topic_code] || {}).all) ? 'จุดเสี่ยงทุกประเภทในแผนก' : 'จุดเสี่ยงที่เกี่ยวกับหัวข้อนี้ในแผนก') + esc(r.dept) + 'จะเกิดน้อยลงตลอดเกม และพนักงานที่มาอบรมจะจำได้ว่าคุณสอนเรื่องนี้</p>' +
       '<div class="actions"><button data-act="close" class="primary">กลับไปทำงาน</button></div></div></div></div>', { wide: true });
     const ctl = stageMount(kind, a, false);
     if (ctl) { ctl.finish(good); ctl.caption(good ? '🎓 ผ่านการอบรม' : 'ควรทบทวนเนื้อหาอีกครั้ง'); }
@@ -750,7 +769,7 @@
       const code = Net.cleanCode($('ocode') && $('ocode').value);
       if (code.length !== 6) { onlineStatus('ใส่รหัสห้อง 6 ตัวอักษร', true); return; }
       onlineStatus('กำลังเชื่อมต่อห้อง ' + code + '…');
-      Net.join(code, name, my.look).then(r => { close(true); log('🌐 เข้าร่วมห้อง ' + r.room + ' แล้ว (คุณคือ P' + r.pid + ')', 'good'); })
+      Net.join(code, name, my.look, m => onlineStatus(m)).then(r => { close(true); log('🌐 เข้าร่วมห้อง ' + r.room + ' แล้ว (คุณคือ P' + r.pid + ')', 'good'); })
         .catch(e => onlineStatus(e.message, true));
     }
   }
@@ -764,7 +783,8 @@
       '<div class="actions"><button data-act="copylink" class="primary">🔗 คัดลอกลิงก์เชิญ (แนะนำ)</button><button data-act="copy">📋 คัดลอกเฉพาะรหัส</button>' +
       (navigator.share ? '<button data-act="share">📤 แชร์ไป LINE</button>' : '') + '</div>' +
       (Net.isHost ? '<p>ส่ง<b>ลิงก์เชิญ</b>ให้เพื่อน เพื่อนแตะลิงก์แล้วกด <b>เข้าร่วม</b> ได้เลย (หรือส่งรหัสห้อง ให้เพื่อนใส่เองในการ์ด <b>เล่นออนไลน์ ต่างเครื่อง</b>)</p>' +
-        '<p class="muted">เครื่องของคุณเป็นเจ้าของห้อง ต้องเปิดเกมค้างไว้ ถ้าปิดหน้านี้ ห้องจะปิดและทุกคนจะหลุด · บันทึกเกมเก็บที่เครื่องคุณ</p>'
+        '<p class="note">📱 ระหว่างรอเพื่อนเข้า <b>เปิดหน้าเกมนี้ค้างไว้</b> ถ้าสลับไปแอปอื่น (เช่น LINE) นานๆ เกมจะหยุดชั่วคราวและเพื่อนจะเข้าไม่ได้ ส่งลิงก์แล้วรีบกลับมาที่เกม</p>' +
+        '<p class="muted">เครื่องของคุณเป็นเจ้าของห้อง ต้องเปิดเกมค้างไว้ ถ้าปิดหน้านี้ ห้องจะปิดและทุกคนจะหลุด · บันทึกเกมเก็บที่เครื่องคุณ · ถ้าเพื่อนต่อไม่ติด ลองให้ทุกเครื่องใช้ WiFi เดียวกัน</p>'
         : '<p class="muted">คุณเชื่อมต่อกับเจ้าของห้องอยู่ ความคืบหน้าบันทึกที่เครื่องเจ้าของห้อง</p>') +
       '<h3 class="coop-h">ผู้เล่นในห้อง (' + Sim.players().length + '/' + Sim.MAX_PLAYERS + ')</h3><ul class="list">' + list + '</ul>' +
       '<div class="actions"><button data-act="close">ไปเล่นต่อ</button></div>');
@@ -1037,7 +1057,10 @@
     });
     $('h-focus').addEventListener('click', () => { if (Sim.S && !Sim.S.over && !isOpen()) planPanel(); });
     // ประชุม คปอ.: ติ๊กเลือกข้อเสนอแล้วคำนวณงบรวมทันที
-    $('panel').addEventListener('change', e => { if (e.target.closest('.kpo-props')) { kpoTotal(); kpoStageSync(e.target.closest('input')); } });
+    $('panel').addEventListener('change', e => {
+      if (e.target.closest('.kpo-props')) { kpoTotal(); kpoStageSync(e.target.closest('input')); }
+      else if (e.target.id === 'pt-topic') trainFormSync();
+    });
     $('file-import').addEventListener('change', e => {
       const f = e.target.files[0]; if (!f) return;
       const rd = new FileReader();

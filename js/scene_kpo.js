@@ -16,6 +16,7 @@
     c.beginPath(); c.moveTo(-1, 1); c.lineTo(8, -17); c.stroke();
     c.fillStyle = '#e8590c'; c.beginPath(); c.arc(8.3, -17.6, 1.5, 0, TAU); c.fill();
   }
+  P.pointer = pointer;                                    // ไม้ชี้ (ใช้ซ้ำในฉากอบรมแบบห้องเรียน)
   function laptop(c, x, y) {
     rr(c, x - 17, y, 34, 5, 2); P.fe(c, '#7c858f', 1.2);
     rr(c, x - 15, y - 21, 30, 21, 3); P.fe(c, '#aab2bb', 1.3);

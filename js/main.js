@@ -806,7 +806,7 @@
             else { const qz = Sim.trainingQuiz(a); Sim.finishTraining(a, qz ? qz.questions.length - (steps % 2) : 0); }
           }
           if (steps % 1200 === 0) {
-            Sim.schedule('training', { day: S.day + 1, hour: 8 + (steps / 1200 % 9), department_id: 1 + (steps / 1200 % 12), topic: ['FIRE', 'CPR', 'LOTO', 'HEIGHT', 'CHEM', 'WATER', 'LIFT', 'SLIP'][steps / 1200 % 8] });
+            Sim.schedule('training', { day: S.day + 1, hour: 8 + (steps / 1200 % 9), department_id: 1 + (steps / 1200 % 12), topic: ['GENERAL', 'FIRE', 'CPR', 'LOTO', 'HEIGHT', 'CHEM', 'WATER', 'LIFT', 'SLIP'][steps / 1200 % 9] });
           }
         }
         if (steps % 60 === 0) {

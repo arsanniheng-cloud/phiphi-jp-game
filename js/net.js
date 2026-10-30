@@ -25,6 +25,14 @@
   function emit(ev, a) { (listeners[ev] || []).forEach(fn => fn(a)); }
 
   function available() { return typeof root.Peer === 'function'; }
+  // รายการ STUN/TURN จาก data/config.js (TURN เดิมของ PeerJS ปิดไปแล้ว จึงไม่ใช้ค่าเริ่มต้นของไลบรารี)
+  function iceConfig() {
+    const C = (root.GAME_DATA && root.GAME_DATA.config) || {};
+    const list = [{ urls: (C.online_stun || ['stun:stun.l.google.com:19302']).slice() }];
+    (C.online_turn || []).forEach(t => { if (t && t.urls) list.push(t); });
+    return { iceServers: list, sdpSemantics: 'unified-plan' };
+  }
+  function hasTurn() { const C = (root.GAME_DATA && root.GAME_DATA.config) || {}; return !!(C.online_turn && C.online_turn.length); }
   function newCode() { let s = ''; for (let i = 0; i < 6; i++) s += ALPH[Math.floor(Math.random() * ALPH.length)]; return s; }
   function cleanCode(s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6); }
   function send(conn, msg) { try { if (conn && conn.open) conn.send(msg); } catch (e) { /* การเชื่อมต่อหลุด */ } }
@@ -37,7 +45,7 @@
       let tries = 0;
       const start = () => {
         const code = cleanCode(fixedCode) || newCode();
-        peer = new root.Peer(PREFIX + code, { debug: 1 });
+        peer = new root.Peer(PREFIX + code, { debug: 1, config: iceConfig() });
         peer.on('open', () => { mode = 'host'; room = code; Sim.setNet('host'); hookHost(); resolve(code); });
         peer.on('connection', setupHostConn);
         peer.on('disconnected', () => { try { peer.reconnect(); } catch (e) { /* ลองใหม่รอบหน้า */ } });
@@ -140,36 +148,49 @@
   function nextDay() { if (mode === 'host') broadcast({ t: 'nextday' }); }
 
   // ------------------------------------------------------------------ client
-  function join(code, name, look) {
+  // เข้าห้อง: ลองต่อซ้ำได้ 3 รอบ (รอบละ ~14 วินาที) เผื่อเครื่องเจ้าของห้องสลับไปแอปอื่นชั่วคราวแล้วกลับมา
+  function join(code, name, look, onStatus) {
     return new Promise((resolve, reject) => {
       if (!available()) { reject(new Error('โหลดไลบรารีออนไลน์ไม่สำเร็จ')); return; }
       code = cleanCode(code);
       if (code.length !== 6) { reject(new Error('รหัสห้องต้องมี 6 ตัวอักษร')); return; }
-      let done = false;
-      const fail = msg => { if (!done) { done = true; reject(new Error(msg)); try { peer.destroy(); } catch (e) { /* ปิดแล้ว */ } } };
-      const timer = setTimeout(() => fail('เชื่อมต่อไม่สำเร็จภายใน 20 วินาที (ห้องอาจปิดแล้ว หรือเครือข่ายบล็อกการเชื่อมต่อ)'), 20000);
-      peer = new root.Peer({ debug: 1 });
+      let done = false, tries = 0, conn = null, retryT = 0;
+      const status = m => { try { if (onStatus) onStatus(m); } catch (e) { /* ไม่เป็นไร */ } };
+      const fail = msg => {
+        if (done) return;
+        done = true; clearTimeout(timer); clearTimeout(retryT); reject(new Error(msg));
+        try { peer.destroy(); } catch (e) { /* ปิดแล้ว */ }
+      };
+      const timer = setTimeout(() => fail('เชื่อมต่อไม่สำเร็จ: สองเครื่องอาจอยู่คนละเครือข่ายที่ต่อกันตรงๆ ไม่ได้ (เช่น 4G กับ WiFi บางที่)' +
+        (hasTurn() ? '' : ' ลองให้ทุกเครื่องใช้ WiFi เดียวกัน') + ' และให้เจ้าของห้องเปิดหน้าเกมค้างไว้ ไม่สลับไปแอปอื่น'), 45000);
+      peer = new root.Peer({ debug: 1, config: iceConfig() });
       peer.on('error', e => fail(errText(e)));
-      peer.on('open', () => {
-        const conn = peer.connect(PREFIX + code, { reliable: true });
-        hostConn = conn;
-        conn.on('open', () => send(conn, { t: 'hello', name: String(name || '').slice(0, 20), look: Sim.cleanLook(look, 1) }));
-        conn.on('data', d => {
-          if (!d || typeof d !== 'object') return;
+      const attempt = () => {
+        if (done) return;
+        tries++;
+        if (conn) { try { conn.close(); } catch (e) { /* ปิดแล้ว */ } }
+        status(tries === 1 ? 'กำลังเชื่อมต่อห้อง ' + code + '…' : 'ยังต่อไม่ติด กำลังลองใหม่ (' + tries + '/3)… ให้เจ้าของห้องเปิดหน้าเกมค้างไว้');
+        const c = peer.connect(PREFIX + code, { reliable: true });
+        conn = c; hostConn = c;
+        c.on('open', () => { if (conn === c && !done) send(c, { t: 'hello', name: String(name || '').slice(0, 20), look: Sim.cleanLook(look, 1) }); });
+        c.on('data', d => {
+          if (conn !== c || !d || typeof d !== 'object') return;
           if (d.t === 'welcome' && !done) {
-            done = true; clearTimeout(timer);
+            done = true; clearTimeout(timer); clearTimeout(retryT);
             mode = 'client'; room = code; myPid = d.pid;
             Sim.netStartClient(myPid);
             Sim.netApply(d.snap);
             resolve({ pid: myPid, room: code });
             return;
           }
-          if (d.t === 'full') { clearTimeout(timer); fail('ห้องนี้เต็มแล้ว (สูงสุด ' + Sim.MAX_PLAYERS + ' คน)'); return; }
+          if (d.t === 'full') { fail('ห้องนี้เต็มแล้ว (สูงสุด ' + Sim.MAX_PLAYERS + ' คน)'); return; }
           onClientData(d);
         });
-        conn.on('close', () => { if (mode === 'client') emit('hostlost'); });
-        conn.on('error', () => { if (mode === 'client') emit('hostlost'); });
-      });
+        c.on('close', () => { if (mode === 'client' && conn === c) emit('hostlost'); });
+        c.on('error', () => { if (mode === 'client' && conn === c) emit('hostlost'); });
+        if (tries < 3) retryT = setTimeout(attempt, 14000);
+      };
+      peer.on('open', attempt);
     });
   }
   function onClientData(d) {

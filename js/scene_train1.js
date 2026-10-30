@@ -61,7 +61,7 @@
         S.aud = [];
         const slots = d.slots || T.slots;
         S.people.slice(0, slots.length).forEach((p, i) => {
-          const a = Sc.mkActor(p.L, slots[i][0], slots[i][1], slots[i][2], slots[i][3] || 0, { name: p.name });
+          const a = Sc.mkActor(p.L, slots[i][0], slots[i][1], slots[i][2], slots[i][3] || 0, Object.assign({ name: p.name }, slots[i][4]));
           S.aud.push(a); S.actors.push(a);
         });
         if (d.init) d.init(S);

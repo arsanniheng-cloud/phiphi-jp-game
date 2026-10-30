@@ -111,6 +111,126 @@
   }
   function resetPos(S) { S.actors.forEach(a => { if (a.bx === undefined) { a.bx = a.x; a.by = a.y; } a.x = a.bx; a.y = a.by; a.squat = 0; }); }
 
+  // ------------------------------------------------------------------ ความปลอดภัยทั่วไป (หลักสูตร 6 ชั่วโมง) ห้องเรียนมีจอฉาย
+  function helmetIcon(c, x, y, s, col) {
+    c.save(); c.translate(x, y); c.scale(s, s);
+    c.beginPath(); c.ellipse(0, 0, 17, 14, 0, Math.PI, TAU); c.closePath(); P.fe(c, col, 1.5);
+    rr(c, -22, -1, 44, 7, 3.5); P.fe(c, shade(col, -0.14), 1.3);
+    c.fillStyle = 'rgba(255,255,255,.5)'; rr(c, -3, -14, 6, 13, 2); c.fill();
+    c.restore();
+  }
+  function gogglesIcon(c, x, y, s) {
+    c.save(); c.translate(x, y); c.scale(s, s);
+    c.strokeStyle = '#4a5560'; c.lineWidth = 3; c.beginPath(); c.moveTo(-26, 0); c.lineTo(26, 0); c.stroke();
+    for (const dx of [-10, 10]) { P.oval(c, dx, 0, 10, 8); c.fillStyle = 'rgba(150,210,255,.8)'; c.fill(); P.ol(c, 1.6); }
+    c.restore();
+  }
+  function gloveIcon(c, x, y, s) {
+    c.save(); c.translate(x, y); c.scale(s, s);
+    rr(c, -11, -4, 22, 20, 6); P.fe(c, '#f2c21d', 1.4);
+    for (let i = 0; i < 4; i++) { rr(c, -11 + i * 6, -22 + (i === 1 || i === 2 ? -3 : 0), 5, 20, 2.5); P.fe(c, '#f2c21d', 1.2); }
+    rr(c, -18, 2, 9, 5, 2.5); P.fe(c, '#f2c21d', 1.2);
+    c.restore();
+  }
+  function bootIcon(c, x, y, s) {
+    c.save(); c.translate(x, y); c.scale(s, s);
+    c.beginPath(); c.moveTo(-9, -26); c.lineTo(7, -26); c.lineTo(7, -6); c.lineTo(20, -4); c.quadraticCurveTo(24, 0, 20, 5); c.lineTo(-9, 5); c.closePath(); P.fe(c, '#8a5a2b', 1.5);
+    rr(c, -10, 2, 33, 5, 2); P.fe(c, '#2b2b30', 1.2);
+    c.restore();
+  }
+  function signIcon(c, kind, x, y, s, t, hot) {
+    c.save(); c.translate(x, y); c.scale(s, s);
+    if (hot) { c.strokeStyle = 'rgba(255,214,60,' + (0.5 + 0.4 * Math.sin(t * 6)).toFixed(2) + ')'; c.lineWidth = 5; P.oval(c, 0, 0, 30, 30); c.stroke(); }
+    if (kind === 'ban') { P.oval(c, 0, 0, 22, 22); c.fillStyle = '#fff'; c.fill(); c.strokeStyle = '#d6322e'; c.lineWidth = 6; c.stroke(); c.beginPath(); c.moveTo(-15, 15); c.lineTo(15, -15); c.stroke(); P.txt(c, '✋', 0, 1, 18, '#000'); }
+    else if (kind === 'must') { P.oval(c, 0, 0, 23, 23); P.fe(c, '#1c6fd1', 1.6); c.save(); c.translate(0, 4); c.beginPath(); c.ellipse(0, 0, 11, 9, 0, Math.PI, TAU); c.closePath(); c.fillStyle = '#fff'; c.fill(); rr(c, -14, 0, 28, 4, 2); c.fill(); c.restore(); }
+    else if (kind === 'warn') { c.beginPath(); c.moveTo(0, -24); c.lineTo(25, 20); c.lineTo(-25, 20); c.closePath(); P.fe(c, '#ffd23f', 1.8); P.txt(c, '!', 0, 8, 26, '#26323d', 'center', '800'); }
+    else { rr(c, -22, -22, 44, 44, 6); P.fe(c, '#27a566', 1.6); c.fillStyle = '#fff'; c.fillRect(-4, -14, 8, 28); c.fillRect(-14, -4, 28, 8); }
+    c.restore();
+  }
+  function screenFrame(c) {
+    rr(c, 186, 30, 268, 150, 8); P.fe(c, '#c9d2da', 1.8);
+    rr(c, 194, 38, 252, 134, 4); P.fe(c, '#fbfbf7', 1.2);
+  }
+  function generalScreen(c, S, t, k, res) {
+    const d = S.demo;
+    c.save(); c.beginPath(); c.rect(194, 38, 252, 134); c.clip();
+    const cx = 320, a = n => ease((k - n) / 0.3);
+    if (!d) {
+      P.txt(c, 'ความปลอดภัยทั่วไป', cx, 80, 22, '#1f5fa8', 'center', '800'); P.txt(c, 'หลักสูตร 6 ชั่วโมง', cx, 112, 18, '#37424d', 'center', '700');
+      helmetIcon(c, 270, 150, 0.7, '#f2c21d'); gogglesIcon(c, 320, 148, 0.7); gloveIcon(c, 366, 152, 0.7);
+    } else if (d === 'signs') {
+      [['ban', 'ห้าม'], ['must', 'บังคับ'], ['warn', 'เตือน'], ['safe', 'ปลอดภัย']].forEach((s, i) => {
+        const x = 232 + i * 56;
+        signIcon(c, s[0], x, 98, 0.95, t, !res && s[0] === 'must');
+        if (res) P.txt(c, s[1], x, 142, 15, s[0] === 'must' ? '#1c6fd1' : '#37424d', 'center', s[0] === 'must' ? '800' : '600'); else P.txt(c, '?', x, 142, 20, '#9aa7b4');
+      });
+      if (res && k > 0.5) T.tick(c, 232 + 56, 60, 11, true);
+    } else if (d === 'hierarchy') {
+      const L = [['กำจัดอันตราย', '#2fbf71'], ['ใช้สิ่งที่อันตรายน้อยกว่า', '#7ccf4a'], ['แก้ที่เครื่องจักร/สถานที่', '#f2c21d'], ['จัดการงาน/กฎระเบียบ', '#ff9f43'], ['อุปกรณ์ PPE', '#e8590c']];
+      L.forEach((l, i) => {
+        const w = 230 - i * 34, y = 48 + i * 24;
+        rr(c, cx - w / 2, y, w, 21, 6); c.fillStyle = res && a(i * 0.08) > 0.3 ? l[1] : '#d5dbe1'; c.fill(); P.ol(c, 1.1);
+        P.txt(c, res ? l[0] : '?', cx, y + 11, P.fitSize(c, l[0], w - 12, 14, '700'), res ? '#26323d' : '#8895a3');
+      });
+      if (res && k > 0.5) { T.tick(c, 214, 59, 10, true); P.txt(c, 'ด่านสุดท้าย', 402, 156, 13, '#c2410c'); }
+    } else if (d === 'ppe') {
+      helmetIcon(c, 226, 100, 0.8, '#ffffff'); gogglesIcon(c, 276, 98, 0.7); gloveIcon(c, 322, 100, 0.8); bootIcon(c, 366, 106, 0.75); jacket(c, 414, 118, 1.0, '#ff7a1a');
+      [226, 276, 322, 366, 414].forEach((x, i) => { if (res && a(i * 0.1) > 0.3) T.tick(c, x, 136, 9, true); else if (!res) P.txt(c, '?', x, 136, 16, '#9aa7b4'); });
+      P.txt(c, res ? 'เหมาะกับงาน · พอดีตัว · สภาพดี' : 'ใช้ให้ถูกต้องอย่างไร', cx, 158, 14, res ? '#2b8a3e' : '#7b8794', 'center', '700');
+    } else if (d === 'report') {
+      const B = ['เกือบเกิดเหตุ', 'แจ้ง จป./หัวหน้า', 'หาสาเหตุ', 'แก้ไข ไม่เกิดซ้ำ'];
+      B.forEach((b, i) => {
+        const y = 46 + i * 31, on = i === 0 || (res && a((i - 1) * 0.2) > 0.3);
+        rr(c, cx - 98, y, 196, 25, 8); c.fillStyle = on ? (i === 0 ? '#ffe3a3' : '#cdeed7') : '#e1e6ea'; c.fill(); P.ol(c, 1.1);
+        P.txt(c, on ? b : '?', cx, y + 13, 15, on ? '#26323d' : '#8895a3');
+        if (i < 3) { c.fillStyle = on ? '#2b8a3e' : '#b4bec8'; c.beginPath(); c.moveTo(cx - 6, y + 26); c.lineTo(cx + 6, y + 26); c.lineTo(cx, y + 31); c.closePath(); c.fill(); }
+      });
+    } else if (d === 'risk') {
+      const cols = [['#ffd23f', '#ff5a5f', '#ff5a5f'], ['#7ccf4a', '#ffd23f', '#ff5a5f'], ['#7ccf4a', '#7ccf4a', '#ffd23f']];
+      for (let r = 0; r < 3; r++) for (let q = 0; q < 3; q++) { rr(c, 250 + q * 46, 50 + r * 34, 42, 30, 5); c.fillStyle = res ? cols[r][q] : '#d5dbe1'; c.fill(); P.ol(c, 1); }
+      P.txt(c, 'โอกาสเกิด', 226, 100, 13, '#37424d', 'center', '700');
+      P.txt(c, 'ความรุนแรง →', 320, 158, 14, '#37424d', 'center', '700');
+      if (res) { const u = ease(k / 0.6); P.oval(c, lerp(262, 380, u), lerp(142 - 0, 66, u) - 0, 7, 7); P.fe(c, '#26323d', 1.2); if (k > 0.7) P.txt(c, '× = เสี่ยงสูง', 402, 66, 13, '#c2410c', 'center', '800'); }
+    } else if (d === 'duty') {
+      P.txt(c, 'หน้าที่ของลูกจ้าง', cx, 54, 17, '#1f5fa8', 'center', '800');
+      ['ปฏิบัติตามกฎความปลอดภัย', 'ใช้ PPE ที่จัดให้', 'แจ้งอันตรายที่พบ'].forEach((s, i) => {
+        const y = 86 + i * 28;
+        rr(c, 222, y - 10, 20, 20, 4); P.fe(c, '#fff', 1.2);
+        if (res && a(i * 0.18) > 0.3) T.tick(c, 232, y, 9, true);
+        P.txt(c, res ? s : '…', 254, y, P.fitSize(c, s, 180, 15, '700'), res ? '#26323d' : '#9aa7b4', 'left');
+      });
+    }
+    c.restore();
+  }
+  Sc.register('GENERAL', T.make({
+    title: '📘 ความปลอดภัยทั่วไป · หลักสูตร 6 ชั่วโมง',
+    trainer: [96, 374, 3.0, 0], hold: { r: P.pointer }, holdArm: [2.2, 0.25],
+    slots: [[332, 306, 2.35, 0, { sit: true }], [276, 306, 2.35, 0, { sit: true }], [388, 306, 2.35, 0, { sit: true }], [220, 306, 2.35, 0, { sit: true }], [444, 306, 2.35, 0, { sit: true }],
+      [500, 306, 2.35, 0, { sit: true }], [556, 306, 2.35, 0, { sit: true }], [248, 256, 1.95, 0], [360, 256, 1.95, 0], [472, 256, 1.95, 0]],
+    bg(c) {
+      P.bgIndoor(c, { wall: ['#eef4f8', '#dbe7ee'], wain: '#4f7d9a', floor: ['#d9b98a', '#bf9c6a'], hz: 252 });
+      rr(c, 300, 8, 40, 14, 4); P.fe(c, '#8895a3', 1.2);
+      rr(c, 36, 62, 112, 90, 5); P.fe(c, '#f7f3ea', 1.6); rr(c, 44, 70, 96, 74, 3); P.fe(c, '#2f9e6b', 1.2);
+      P.txt(c, 'SAFETY', 92, 92, 18, '#fff', 'center', '800'); P.txt(c, 'ปลอดภัยไว้ก่อน', 92, 118, 13, '#e8fff3', 'center', '600');
+      P.windowView(c, 484, 52, 112, 100);
+      P.plant(c, 618, 262, 0.75);
+    },
+    caption(S, k) {
+      const m = { signs: 'วงกลมสีน้ำเงิน = บังคับให้ปฏิบัติ เช่น ต้องสวม PPE', hierarchy: 'กำจัดที่ต้นเหตุก่อน PPE เป็นด่านสุดท้าย', ppe: 'เลือกให้เหมาะกับงาน พอดีตัว ตรวจสภาพก่อนใช้ทุกครั้ง', report: 'รายงานทันที จะได้แก้ไขก่อนมีคนเจ็บ', risk: 'ความเสี่ยง = โอกาสเกิดเหตุ × ความรุนแรง', duty: 'ความปลอดภัยเป็นหน้าที่ของทุกคน' }[S.demo];
+      return S.res && m ? m : ({ signs: 'ป้ายวงกลมสีน้ำเงินหมายถึงอะไร', hierarchy: 'ควบคุมอันตรายอย่างไรให้ได้ผลที่สุด', ppe: 'ใช้ PPE อย่างไรจึงถูกต้อง', report: 'เกือบเกิดอุบัติเหตุ ทำอย่างไรดี', risk: 'ความเสี่ยงมาจากอะไร', duty: 'ด้านความปลอดภัย ลูกจ้างมีหน้าที่อะไร' }[S.demo] || '');
+    },
+    items(S, t, k, push, c) {
+      S.aud.filter(a => a.sit).forEach(a => push(a.y - 1, () => { rr(c, a.x - 28, a.y - 80, 56, 72, 13); P.fe(c, '#5c7a8a', 1.5); c.fillStyle = 'rgba(255,255,255,.12)'; rr(c, a.x - 21, a.y - 72, 42, 56, 9); c.fill(); }));
+      push(0, () => { screenFrame(c); generalScreen(c, S, t, k, !!S.res); });
+      push(331, () => {
+        c.beginPath(); c.moveTo(196, 284); c.lineTo(590, 284); c.lineTo(622, 312); c.lineTo(166, 312); c.closePath();
+        c.fillStyle = P.linear(c, 0, 284, 0, 312, ['#d9b384', '#b98c58']); c.fill(); P.ol(c, 1.6);
+        c.beginPath(); c.moveTo(166, 312); c.lineTo(622, 312); c.lineTo(618, 330); c.lineTo(170, 330); c.closePath(); P.fe(c, '#8a6238', 1.5);
+        for (const x of [236, 300, 364, 428, 492, 556]) { rr(c, x - 12, 290, 24, 14, 2); P.fe(c, ['#ffffff', '#cde6ff'][(x / 64 | 0) % 2], 1.1); c.fillStyle = '#9aa7b4'; c.fillRect(x - 8, 295, 16, 1.5); c.fillRect(x - 8, 299, 12, 1.5); }
+      });
+    }
+  }));
+
   // ------------------------------------------------------------------ สารเคมี
   Sc.register('CHEM', T.make({
     title: '🧪 อบรมการใช้สารเคมีอย่างปลอดภัย',

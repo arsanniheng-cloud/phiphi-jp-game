@@ -8,6 +8,12 @@ GAME_DATA.config = {
   schema_version: 1,
   world: { width: 2400, height: 1600, mask_scale: 4 },
 
+  // เล่นออนไลน์: เซิร์ฟเวอร์ช่วยหาเส้นทาง (STUN) และทางสำรองส่งต่อข้อมูล (TURN)
+  // เซิร์ฟเวอร์ TURN ฟรีของ PeerJS ปิดไปแล้ว ถ้าไม่มี TURN สองเครื่องต่างเครือข่าย (เช่น 4G กับ WiFi) อาจต่อกันไม่ได้
+  // ใส่ TURN ของบริการที่สมัครไว้ได้ที่ online_turn เช่น { urls: ['turn:…:80', 'turns:…:443?transport=tcp'], username: '…', credential: '…' }
+  online_stun: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun.cloudflare.com:3478'],
+  online_turn: [],
+
   time: {
     start_hour: 6,            // เริ่มกะเช้า 06:00
     end_hour: 22,             // สรุปผลประจำวัน 22:00

@@ -1038,6 +1038,7 @@
     if (dom >= 20 && !thisMonthKpo) emit('log', '🏛️ เดือนนี้ยังไม่ได้นัดประชุม คปอ. (ต้องประชุมอย่างน้อยเดือนละครั้ง) นัดได้ที่ 📅 แผนงาน', 'warn');
     processCars();
     for (const n of npcs) { n.hurt_t = 0; n.on = false; n.route = null; n.event_id = null; }
+    S.holds = [];
     rollDailyPpe();
     for (const p of S.ptw) {
       if (p.status === 'pending') { p.game_day = S.day; p.created_hour = S.hour; }
@@ -1117,7 +1118,9 @@
     let w = 1;
     Object.keys(S.trained || {}).forEach(k => {
       const parts = k.split(':'), tp = TOPIC[parts[1]];
-      if (+parts[0] === t.department_id && tp && tp.hazard_codes.indexOf(t.code) >= 0) w *= 0.7;
+      if (+parts[0] !== t.department_id || !tp) return;
+      if (tp.hazard_codes.indexOf(t.code) >= 0) w *= 0.7;
+      if (tp.all) w *= tp.all;                       // หัวข้อทั่วไป (เช่น ความปลอดภัยทั่วไป) ลดจุดเสี่ยงทุกประเภทของแผนก
     });
     return w;
   }
@@ -1156,7 +1159,10 @@
   function schedule(type, o) {
     o = o || {};
     const day = Math.max(S.day, Math.round(+o.day) || S.day);
-    const hour = clamp(+o.hour || 10, C.time.start_hour + 1, C.time.end_hour - 2);
+    const tp0 = type === 'training' ? TOPIC[o.topic] : null;
+    const span = tp0 && tp0.hours ? tp0.hours : 2;           // หลักสูตรยาว (เช่น 6 ชั่วโมง) ต้องเริ่มเร็วพอให้จบก่อนสิ้นวัน
+    if (tp0 && tp0.hours && (+o.hour || 10) > C.time.end_hour - span) return { err: 'หลักสูตร ' + tp0.hours + ' ชั่วโมง ต้องเริ่มไม่เกิน ' + timeText(C.time.end_hour - span) + ' น.' };
+    const hour = clamp(+o.hour || 10, C.time.start_hour + 1, C.time.end_hour - span);
     if (day === S.day && hour < S.hour + 0.25) return { err: 'เวลานี้ผ่านไปแล้ว เลือกเวลาที่ช้ากว่านี้' };
     if (S.activities.some(a => (a.status === 'planned' || a.status === 'due') && a.scheduled_day === day && Math.abs(a.scheduled_hour - hour) < 1.5)) {
       return { err: 'มีกิจกรรมอื่นนัดไว้ใกล้เวลานี้แล้ว' };
@@ -1223,12 +1229,24 @@
     }
     emit('log', '⏰ ไม่ได้จัด' + a.title + 'ตามนัด ' + (a.activity_type === 'kpo_meeting' ? 'ความน่าเชื่อถือลดลง' : 'พนักงานรอเก้อ'), 'bad');
   }
-  function updateActivities() {
+  function updateActivities(dt) {
     for (const a of S.activities) {
       if (a.status === 'planned') {
         if (a.scheduled_day < S.day) missActivity(a);
         else if (a.scheduled_day === S.day && S.hour >= a.scheduled_hour) startDue(a);
       } else if (a.status === 'due' && (a.scheduled_day < S.day || S.hour > a.scheduled_hour + 2)) missActivity(a);
+    }
+    // หลักสูตรยาว: ผู้เข้าอบรมยังอยู่ในห้องอบรม ทำให้งานบริการช้าลงจนกว่าจะครบเวลา
+    if (S.holds && S.holds.length) {
+      S.holds = S.holds.filter(h => {
+        const a = S.activities.find(x => x.id === h.id);
+        if (!a || S.hour >= h.until) {
+          if (a) { releaseAttendees(a); emit('log', '📘 จบ' + a.title + ' พนักงานกลับเข้างานแล้ว', 'info'); }
+          return false;
+        }
+        S.metrics.ops = clamp(S.metrics.ops - h.n * 0.06 * (dt || 0) * season().ops_cost_multiplier, 0, 100);
+        return true;
+      });
     }
   }
   function activityById(id) { return S.activities.find(a => a.id === id) || null; }
@@ -1303,7 +1321,7 @@
     if (!t) return null;
     const idx = t.questions.map((q, i) => i);
     for (let i = idx.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); const tmp = idx[i]; idx[i] = idx[j]; idx[j] = tmp; }
-    a.quiz = idx.slice(0, Math.min(3, idx.length));
+    a.quiz = idx.slice(0, Math.min(t.ask || 3, idx.length));       // หลักสูตรยาวถามครบทุกหัวข้อย่อย (ask)
     return { topic: t, questions: a.quiz.map(i => t.questions[i]), attendees: (a.attendee_ids || []).length };
   }
   function finishTraining(a, correct) {
@@ -1313,22 +1331,30 @@
     correct = clamp(Math.round(+correct) || 0, 0, total);
     const people = npcs.filter(x => (a.attendee_ids || []).indexOf(x.id) >= 0);
     const ratio = correct / total;
-    const gain = Math.round((6 + ratio * 16) * (people.length ? 1 : 0.3));
+    const hrs = t.hours > 1 ? t.hours : 0, lg = hrs ? 1 + (hrs - 1) * 0.2 : 1;      // หลักสูตรยาว (เช่น 6 ชั่วโมง) ได้ผลมากกว่า แต่พนักงานหายจากหน้างานนาน
+    const gain = Math.round((6 + ratio * 16) * lg * (people.length ? 1 : 0.3));
     S.dept_know[a.department_id] = clamp((S.dept_know[a.department_id] || 0) + gain, 0, 100);
     people.forEach(x => {
-      x.comp = clamp(x.comp + 2 + ratio * 4, 0, 100);
-      adjustTrust(x, 1 + ratio * 3, 'trained', null, false, { detail: t.title });
+      x.comp = clamp(x.comp + (2 + ratio * 4) * lg, 0, 100);
+      adjustTrust(x, (1 + ratio * 3) * lg, 'trained', null, false, { detail: t.title });
     });
     S.trained = S.trained || {};
     S.trained[a.department_id + ':' + a.topic_code] = true;
-    S.metrics.ops = clamp(S.metrics.ops - people.length * 0.5 * season().ops_cost_multiplier, 0, 100);
-    const rep = 1 + Math.round(ratio * 2);
+    const rep = 1 + Math.round(ratio * 2) + (hrs ? 2 : 0);
     S.metrics.reputation = clamp(S.metrics.reputation + rep, 0, 100);
-    Object.assign(a, { status: 'done', score: correct, attendees: people.length, details: { questions: total, knowledge_gain: gain } });
-    releaseAttendees(a);
+    let until = null;
+    if (hrs) {
+      // ผู้เข้าอบรมอยู่ในห้องอบรมต่อจนครบเวลา งานบริการลดลงระหว่างนี้ (คิดใน updateActivities) แล้วจึงกลับเข้างาน
+      until = Math.min(C.time.end_hour - 0.01, S.hour + hrs);
+      S.holds = (S.holds || []).filter(h => h.id !== a.id).concat([{ id: a.id, until, n: people.length }]);
+    } else {
+      S.metrics.ops = clamp(S.metrics.ops - people.length * 0.5 * season().ops_cost_multiplier, 0, 100);
+      releaseAttendees(a);
+    }
+    Object.assign(a, { status: 'done', score: correct, attendees: people.length, details: { questions: total, knowledge_gain: gain, hours: hrs || undefined } });
     credit(actor.id, 'train');
-    emit('log', '📚 ' + a.title + ' ผู้เข้าร่วม ' + people.length + ' คน ตอบถูก ' + correct + '/' + total, 'good');
-    return { ok: true, gain, correct, total, attendees: people.length, rep, topic: t.title, dept: DEPT[a.department_id].short };
+    emit('log', '📚 ' + a.title + ' ผู้เข้าร่วม ' + people.length + ' คน ตอบถูก ' + correct + '/' + total + (hrs ? ' · อบรมต่อจนถึง ' + timeText(until) + ' น.' : ''), 'good');
+    return { ok: true, gain, correct, total, attendees: people.length, rep, topic: t.title, dept: DEPT[a.department_id].short, hours: hrs, until };
   }
 
   // ================================================================== ONLINE (ต่างเครื่อง)
@@ -1590,7 +1616,7 @@
     updateReports(dt);
     updatePtw(dt);
     updateMetrics(dt);
-    updateActivities();
+    updateActivities(dt);
     S.spawn_in -= dt;
     if (S.spawn_in <= 0) { spawnHazard(); S.spawn_in = season().hazard_spawn_seconds * (0.7 + rnd() * 0.6) * focusEff('spawn', 1); }
   }
