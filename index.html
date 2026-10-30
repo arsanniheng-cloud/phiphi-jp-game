@@ -2,11 +2,27 @@
 <html lang="th">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <!-- ความปลอดภัย: รันสคริปต์ได้เฉพาะไฟล์ของเกม · เชื่อมต่อได้เฉพาะบริการนัดพบของ PeerJS -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://0.peerjs.com wss://0.peerjs.com; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <title>จป.ซัน แห่งเกาะพีพี</title>
+<!-- ตัวอย่างลิงก์เวลาแชร์ใน LINE / Facebook -->
+<meta name="description" content="เกมจำลองงาน จป.วิชาชีพ ดูแลรีสอร์ตบนเกาะพีพี พนักงาน 204 คนที่จำได้ว่าคุณทำอะไร เล่นในมือถือได้ เล่นออนไลน์กับเพื่อนได้สูงสุด 4 คน">
+<meta property="og:type" content="website">
+<meta property="og:title" content="จป.ซัน แห่งเกาะพีพี — เกมจำลองงาน จป.วิชาชีพ">
+<meta property="og:description" content="เดินตรวจรีสอร์ตบนเกาะพีพี หาจุดเสี่ยงก่อนเกิดเหตุ คุยกับพนักงาน 204 คนที่จำได้ว่าคุณทำอะไร · เล่นออนไลน์กับเพื่อนได้">
+<meta property="og:image" content="https://arsanniheng-cloud.github.io/phiphi-jp-game/assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://arsanniheng-cloud.github.io/phiphi-jp-game/">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#0a5c98">
+<link rel="icon" type="image/png" href="assets/icon-512.png">
+<link rel="apple-touch-icon" href="assets/icon-512.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
@@ -25,27 +41,29 @@
     <span class="chip net" id="h-net" hidden title="ดูรหัสห้อง"></span>
   </div>
   <div class="meters">
-    <div class="meter" id="m-ops"><span>ความพร้อมบริการ</span><i></i><b>0</b></div>
-    <div class="meter" id="m-guest"><span>ความพึงพอใจแขก</span><i></i><b>0</b></div>
-    <div class="meter" id="m-rep"><span>ความน่าเชื่อถือ จป.</span><i></i><b>0</b></div>
-    <div class="meter" id="m-trust"><span>ความไว้ใจของพนักงาน</span><i></i><b>0</b></div>
+    <div class="meter" id="m-ops"><span class="ic">🛎️</span><span class="tx">ความพร้อมบริการ</span><i></i><b>0</b></div>
+    <div class="meter" id="m-guest"><span class="ic">😊</span><span class="tx">ความพึงพอใจแขก</span><i></i><b>0</b></div>
+    <div class="meter" id="m-rep"><span class="ic">🦺</span><span class="tx">ความน่าเชื่อถือ จป.</span><i></i><b>0</b></div>
+    <div class="meter" id="m-trust"><span class="ic">🤝</span><span class="tx">ความไว้ใจของพนักงาน</span><i></i><b>0</b></div>
   </div>
 </div>
 
 <div id="side">
   <canvas id="minimap" width="240" height="160" title="แตะแผนที่เพื่อเดินไป"></canvas>
   <div id="tools">
-    <button data-ui="staff">👥 พนักงาน</button>
-    <button data-ui="log">📋 บันทึก<em id="badge-log"></em></button>
-    <button data-ui="ptw">📝 PTW<em id="badge-ptw"></em></button>
-    <button data-ui="menu">☰ เมนู</button>
+    <button data-ui="mapbtn" class="mob-only" aria-label="แผนที่"><span class="ic">🗺️</span><span class="tx">แผนที่</span></button>
+    <button data-ui="staff" aria-label="พนักงาน"><span class="ic">👥</span><span class="tx">พนักงาน</span></button>
+    <button data-ui="log" aria-label="สมุดบันทึก"><span class="ic">📋</span><span class="tx">บันทึก</span><em id="badge-log"></em></button>
+    <button data-ui="ptw" aria-label="ใบอนุญาตทำงาน"><span class="ic">📝</span><span class="tx">PTW</span><em id="badge-ptw"></em></button>
+    <button data-ui="menu" aria-label="เมนู"><span class="ic">☰</span><span class="tx">เมนู</span></button>
+    <button data-ui="full" class="mob-only" aria-label="เต็มจอ"><span class="ic">⛶</span><span class="tx">เต็มจอ</span></button>
   </div>
 </div>
 
 <div id="feed"></div>
 <div id="prompt"></div>
 <div id="joy"><div id="stick"></div></div>
-<button id="act" aria-label="โต้ตอบ">E</button>
+<button id="act" aria-label="โต้ตอบ"><span class="ic">✋</span><span class="tx">E</span></button>
 
 <div id="panel" class="hidden"><div id="card"></div></div>
 <div id="flash"></div>

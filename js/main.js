@@ -25,15 +25,23 @@
   const ICON = { fire_hazard: '🔥', electrical: '⚡', drowning_risk: '🌊', chemical_spill: '☣️', fall_from_height: '🏗️', injury: '⚠️', first_aid: '⚠️', near_miss: '⚠️' };
   const EMOJI_FONT = '"Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';
 
+  // จอสัมผัส (มือถือ/แท็บเล็ต) · ทดสอบบนคอมด้วย #touch ต่อท้ายลิงก์
+  const touch = /[#&]touch\b/.test(location.hash) || matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+  if (touch) document.body.classList.add('touch');
+
   // ------------------------------------------------------------------ viewport
   function resize() {
-    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    DPR = Math.min(window.devicePixelRatio || 1, touch ? 1.75 : 2);   // มือถือ: จำกัดความละเอียดเพื่อให้ลื่น
     VW = window.innerWidth; VH = window.innerHeight;
     cv.width = Math.round(VW * DPR); cv.height = Math.round(VH * DPR);
     cv.style.width = VW + 'px'; cv.style.height = VH + 'px';
-    Z = Math.max(0.6, Math.min(1.5, Math.min(VW / 1050, VH / 680))) * zoomMul;
+    // มือถือ: ซูมใกล้กว่าคอม ตัวละครจะได้ไม่เล็กเกินไป
+    Z = (touch ? Math.max(0.72, Math.min(1.4, Math.min(VW / 720, VH / 600)))
+      : Math.max(0.6, Math.min(1.5, Math.min(VW / 1050, VH / 680)))) * zoomMul;
   }
-  function setZoom(f) { zoomMul = Math.max(0.7, Math.min(1.8, zoomMul * f)); resize(); }
+  function setZoom(f) { zoomMul = Math.max(0.6, Math.min(2, zoomMul * f)); resize(); }
+  // ขนาดตัวหนังสือ/ป้ายบนแผนที่: บนมือถือขยายตามการซูมให้อ่านออก
+  const textScale = () => (touch ? Math.max(1, 0.95 / (curZ || Z)) : 1);
   function toWorld(cx, cy) { const z = curZ || Z; return { x: camX + cx / z, y: camY + cy / z }; }
 
   // ------------------------------------------------------------------ input
@@ -74,17 +82,45 @@
   window.addEventListener('blur', () => { [keys, keys2].forEach(o => Object.keys(o).forEach(k => { o[k] = false; })); });
 
   cv.addEventListener('wheel', e => { e.preventDefault(); setZoom(e.deltaY < 0 ? 1.1 : 1 / 1.1); }, { passive: false });
+  // แตะ/คลิกเพื่อเดินไป (ทำงานตอนปล่อยนิ้ว) · สองนิ้วถ่างหรือหุบเพื่อซูม
+  const ptrs = new Map();
+  let pinch = null, tapStart = null;
   cv.addEventListener('pointerdown', e => {
+    ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (ptrs.size === 2) {
+      const [a, b] = [...ptrs.values()];
+      pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, z: zoomMul };
+      tapStart = null;
+    } else if (ptrs.size === 1) tapStart = { x: e.clientX, y: e.clientY, id: e.pointerId };
+  });
+  cv.addEventListener('pointermove', e => {
+    if (!ptrs.has(e.pointerId)) return;
+    ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pinch && ptrs.size >= 2) {
+      const [a, b] = [...ptrs.values()];
+      zoomMul = Math.max(0.6, Math.min(2, pinch.z * (Math.hypot(a.x - b.x, a.y - b.y) || 1) / pinch.d));
+      resize();
+    } else if (tapStart && Math.hypot(e.clientX - tapStart.x, e.clientY - tapStart.y) > 14) tapStart = null;
+  });
+  const ptrEnd = e => {
+    const wasTap = e.type === 'pointerup' && tapStart && tapStart.id === e.pointerId && !pinch;
+    ptrs.delete(e.pointerId);
+    if (!ptrs.size) { pinch = null; tapStart = null; }
+    if (wasTap) tapAt(e.clientX, e.clientY);
+  };
+  cv.addEventListener('pointerup', ptrEnd);
+  cv.addEventListener('pointercancel', ptrEnd);
+  function tapAt(cx, cy) {
     if (!Sim.S || UI.isOpen() || Sim.S.over) return;
-    const w = toWorld(e.clientX, e.clientY);
-    const tg = Sim.pickAt(w.x, w.y);
+    const w = toWorld(cx, cy);
+    const tg = Sim.pickAt(w.x, w.y, touch ? 1.8 : 1);
     if (tg) {
       const o = tg.obj;
       if (Math.hypot(Sim.P.x - o.x, Sim.P.y - o.y) < 60) UI.interact(tg, Sim.P);
       else Sim.goTo(o.x, o.y + 6, tg, Sim.P);
     } else Sim.goTo(w.x, w.y, null, Sim.P);
     clickFx = { x: w.x, y: w.y, t: 0.6 };
-  });
+  }
   miniCv.addEventListener('pointerdown', e => {
     if (!Sim.S || UI.isOpen()) return;
     const r = miniCv.getBoundingClientRect();
@@ -92,9 +128,7 @@
     if (Wd.walkable(x, y)) Sim.goTo(x, y);
   });
 
-  const touch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
   const joyEl = document.getElementById('joy'), stick = document.getElementById('stick');
-  if (touch) document.body.classList.add('touch');
   joyEl.addEventListener('pointerdown', e => {
     joy.active = true; joy.id = e.pointerId;
     const r = joyEl.getBoundingClientRect(); joy.cx = r.left + r.width / 2; joy.cy = r.top + r.height / 2;
@@ -105,7 +139,7 @@
   joyEl.addEventListener('pointerup', endJoy); joyEl.addEventListener('pointercancel', endJoy);
   function moveJoy(e) {
     let dx = e.clientX - joy.cx, dy = e.clientY - joy.cy;
-    const l = Math.hypot(dx, dy), m = 46;
+    const l = Math.hypot(dx, dy), m = joyEl.offsetWidth * 0.36 || 46;
     if (l > m) { dx = dx / l * m; dy = dy / l * m; }
     joy.x = dx / m; joy.y = dy / m;
     stick.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
@@ -205,48 +239,56 @@
 
   function drawMarkers(t, view, S) {
     ctx.textAlign = 'center';
+    const s = textScale();
     for (const h of S.hazards) {
       if (h.done || !(h.disc || h.rep) || !inV(h, view)) continue;
       const ht = Sim.HT[h.type_id], pct = Math.max(0, h.fuse / h.fuse_max), urgent = pct < 0.3;
+      if (!ht) continue;
       const col = SEV_COL[h.sev];
       ctx.globalAlpha = 0.55 + Math.sin(t * (urgent ? 9 : 3)) * 0.25;
       ctx.strokeStyle = col; ctx.lineWidth = 2.5;
       ctx.beginPath(); ctx.ellipse(h.x, h.y, 20, 8, 0, 0, Math.PI * 2); ctx.stroke();
       ctx.globalAlpha = 1;
-      const y = h.y - 40 + Math.sin(t * (urgent ? 8 : 2.5) + h.id) * 2.5;
+      const y = h.y - 40 * s + Math.sin(t * (urgent ? 8 : 2.5) + h.id) * 2.5;
       ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(h.x, h.y - 2); ctx.lineTo(h.x, y + 12); ctx.stroke();
-      ctx.fillStyle = col; ctx.beginPath(); ctx.arc(h.x, y, 13, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(h.x, h.y - 2); ctx.lineTo(h.x, y + 12 * s); ctx.stroke();
+      ctx.save(); ctx.translate(h.x, y); ctx.scale(s, s);
+      ctx.fillStyle = col; ctx.beginPath(); ctx.arc(0, 0, 13, 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 3.5;
-      ctx.beginPath(); ctx.arc(h.x, y, 16.5, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, 16.5, 0, Math.PI * 2); ctx.stroke();
       ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3.5;
-      ctx.beginPath(); ctx.arc(h.x, y, 16.5, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * pct); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, 16.5, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * pct); ctx.stroke();
       ctx.font = '14px ' + EMOJI_FONT; ctx.fillStyle = '#fff';
-      ctx.fillText(ICON[ht.incident_type] || '⚠️', h.x, y + 5);
-      if (h.mit) { ctx.font = '11px ' + EMOJI_FONT; ctx.fillText('📋', h.x + 15, y - 11); }
-      else if (h.rep && !h.disc) { ctx.font = '11px ' + EMOJI_FONT; ctx.fillText('📢', h.x + 15, y - 11); }
+      ctx.fillText(ICON[ht.incident_type] || '⚠️', 0, 5);
+      if (h.mit) { ctx.font = '11px ' + EMOJI_FONT; ctx.fillText('📋', 15, -11); }
+      else if (h.rep && !h.disc) { ctx.font = '11px ' + EMOJI_FONT; ctx.fillText('📢', 15, -11); }
+      ctx.restore();
     }
     for (const p of S.ptw) {
       if (p.status !== 'pending' || !inV(p, view)) continue;
-      const y = p.y - 38 + Math.sin(t * 2 + p.id) * 2;
-      ctx.fillStyle = '#1c7ed6'; A.rr(ctx, p.x - 13, y - 13, 26, 26, 7); ctx.fill();
-      ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; A.rr(ctx, p.x - 13, y - 13, 26, 26, 7); ctx.stroke();
-      ctx.font = '14px ' + EMOJI_FONT; ctx.fillStyle = '#fff'; ctx.fillText('📝', p.x, y + 5);
+      const y = p.y - 38 * s + Math.sin(t * 2 + p.id) * 2;
+      ctx.save(); ctx.translate(p.x, y); ctx.scale(s, s);
+      ctx.fillStyle = '#1c7ed6'; A.rr(ctx, -13, -13, 26, 26, 7); ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; A.rr(ctx, -13, -13, 26, 26, 7); ctx.stroke();
+      ctx.font = '14px ' + EMOJI_FONT; ctx.fillStyle = '#fff'; ctx.fillText('📝', 0, 5);
+      ctx.restore();
     }
   }
 
   function drawLabels(view) {
-    ctx.font = '600 12px ' + A.FONT; ctx.textAlign = 'center';
+    const s = textScale();
+    ctx.font = '600 ' + (12 * s).toFixed(1) + 'px ' + A.FONT; ctx.textAlign = 'center';
     for (const l of Wd.labels) {
-      if (l.x < view.x - 120 || l.x > view.x + view.w + 120 || l.y < view.y - 20 || l.y > view.y + view.h + 20) continue;
-      const w = ctx.measureText(l.text).width + 14;
-      ctx.fillStyle = 'rgba(18,28,38,.62)'; A.rr(ctx, l.x - w / 2, l.y - 10, w, 19, 9.5); ctx.fill();
-      ctx.fillStyle = '#ffffff'; ctx.fillText(l.text, l.x, l.y + 4);
+      if (l.x < view.x - 160 || l.x > view.x + view.w + 160 || l.y < view.y - 30 || l.y > view.y + view.h + 30) continue;
+      const w = ctx.measureText(l.text).width + 14 * s;
+      ctx.fillStyle = 'rgba(18,28,38,.62)'; A.rr(ctx, l.x - w / 2, l.y - 10 * s, w, 19 * s, 9.5 * s); ctx.fill();
+      ctx.fillStyle = '#ffffff'; ctx.fillText(l.text, l.x, l.y + 4 * s);
     }
   }
 
   function drawTags(S) {
-    ctx.font = '600 11px ' + A.FONT; ctx.textAlign = 'center';
+    const s = textScale();
+    ctx.font = '600 ' + (11 * s).toFixed(1) + 'px ' + A.FONT; ctx.textAlign = 'center';
     // ป้ายชื่อ: คนที่กำลังจะคุยด้วย + คนใกล้ที่สุดอีก 2 คนของผู้เล่นแต่ละคน และไม่ให้ป้ายซ้อนกัน
     const tgs = targets.filter(x => x && x.type === 'npc').map(x => x.obj);
     let show = tgs.slice();
@@ -259,12 +301,12 @@
     for (const n of show) {
       const isT = tgs.indexOf(n) >= 0;
       const txt = n.nickname + ' · ' + Sim.DEPT[n.department_id].short;
-      const w = ctx.measureText(txt).width + 10, y = n.y - (n.L.hat === 'chef' ? 62 : 56);
-      if (boxes.some(b => Math.abs(b.x - n.x) < (b.w + w) / 2 && Math.abs(b.y - y) < 16)) continue;
+      const w = ctx.measureText(txt).width + 10 * s, y = n.y - (n.L.hat === 'chef' ? 62 : 56) - (s - 1) * 6;
+      if (boxes.some(b => Math.abs(b.x - n.x) < (b.w + w) / 2 && Math.abs(b.y - y) < 16 * s)) continue;
       boxes.push({ x: n.x, y, w });
       ctx.fillStyle = isT ? 'rgba(255,176,32,.95)' : 'rgba(18,28,38,.7)';
-      A.rr(ctx, n.x - w / 2, y - 9, w, 15, 7.5); ctx.fill();
-      ctx.fillStyle = isT ? '#2b1a00' : '#fff'; ctx.fillText(txt, n.x, y + 2.5);
+      A.rr(ctx, n.x - w / 2, y - 9 * s, w, 15 * s, 7.5 * s); ctx.fill();
+      ctx.fillStyle = isT ? '#2b1a00' : '#fff'; ctx.fillText(txt, n.x, y + 2.5 * s);
     }
     targets.forEach((tg, i) => {
       if (!tg || (tg.type !== 'npc' && tg.type !== 'guest')) return;
@@ -436,8 +478,11 @@
         window.__test = { buildMs, spriteCount };
         runTest(m);
       } else {
-        DB.load('auto').then(rec => UI.intro(rec && rec.data ? { day: rec.data.state.day, players: (rec.data.state.players || []).length } : null))
-          .catch(() => UI.intro(null));
+        // แสดงหน้าแรกทันที แล้วค่อยเติมปุ่ม "เล่นต่อ" ถ้าพบเกมที่บันทึกไว้ (มือถือบางรุ่นเปิดฐานข้อมูลช้า)
+        UI.intro(null);
+        DB.load('auto').then(rec => {
+          if (rec && rec.data && !Sim.S) UI.intro({ day: rec.data.state.day, players: (rec.data.state.players || []).length });
+        }).catch(() => {});
       }
       requestAnimationFrame(frame);
     });
@@ -455,6 +500,18 @@
     if (mode === 'coop' || mode === 'coop2') {
       const pls = Sim.players();
       [[1160, 730], [1690, 930], [1520, 1180]].forEach((p, i) => { if (pls[i]) { pls[i].x = p[0]; pls[i].y = p[1]; } });
+    }
+    if (mode === 'og') {
+      // ภาพปกสำหรับแชร์ลิงก์: ซ่อนแถบต่างๆ แล้วแสดงชื่อเกมบนฉาก
+      document.body.classList.add('og');
+      S.hazards.forEach(h => { h.done = true; });
+      Sim.P.x = 1560; Sim.P.y = 960;
+      const t = document.createElement('div');
+      t.id = 'ogtitle';
+      t.innerHTML = '<b>จป.ซัน แห่งเกาะพีพี</b><span>เกมจำลองงาน จป.วิชาชีพ · เล่นออนไลน์กับเพื่อนได้</span>';
+      document.body.appendChild(t);
+      Sim.update(0.016, { x: 0, y: 0 });
+      return;
     }
     for (const code of ['KIT_LPG', 'FB_GLASS', 'MAR_OVERLOAD', 'EHS_POOL']) { const h = Sim.spawnHazard(code); if (h) h.disc = true; }
     Sim.update(0.016, { x: 0, y: 0 });

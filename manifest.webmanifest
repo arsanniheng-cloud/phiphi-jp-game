@@ -1,0 +1,15 @@
+{
+  "name": "จป.ซัน แห่งเกาะพีพี",
+  "short_name": "จป.ซัน",
+  "description": "เกมจำลองงาน จป.วิชาชีพ บนเกาะพีพี เล่นออนไลน์กับเพื่อนได้",
+  "lang": "th",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#0a5c98",
+  "theme_color": "#0a5c98",
+  "icons": [
+    { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

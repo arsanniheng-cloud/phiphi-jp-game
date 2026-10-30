@@ -116,14 +116,33 @@
   }
   // ปุ่มโต้ตอบของผู้เล่นแต่ละคน: P1 = E, P2 = Enter, P3-P4 = ปุ่ม A บนจอยเกม
   const ACT_KEY = ['E', 'Enter', 'Ⓐ', 'Ⓐ'];
+  // ปุ่มโต้ตอบบนมือถือ: เปลี่ยนไอคอนและคำตามสิ่งที่อยู่ตรงหน้า
+  const ACT_LABEL = { npc: ['💬', 'คุย'], hazard: ['⚠️', 'ตรวจ'], ptw: ['📝', 'PTW'], guest: ['🙂', 'ทักทาย'] };
+  let lastAct = '';
+  function setActButton(tg) {
+    const btn = $('act');
+    let ic = '✋', tx = 'แตะคน/ป้าย';
+    if (tg) {
+      [ic, tx] = ACT_LABEL[tg.type] || ['✋', 'ใช้'];
+      if (tg.type === 'npc') tx = tg.obj.nickname;
+      if (tg.type === 'hazard' && tg.obj.mit) [ic, tx] = ['📋', 'ติดตาม CAR'];
+    }
+    const key = ic + tx + !!tg;
+    if (key === lastAct) return;
+    lastAct = key;
+    btn.querySelector('.ic').textContent = ic;
+    btn.querySelector('.tx').textContent = tx;
+    btn.classList.toggle('ready', !!tg);
+  }
   function prompt(tgs) {
-    const el = $('prompt'), btn = $('act');
+    const el = $('prompt');
     tgs = tgs || [];
     const coop = !!(Sim.S && Sim.S.coop);
-    if (!tgs.some(Boolean) || isOpen()) { el.classList.remove('show'); btn.classList.remove('ready'); return; }
+    if (!tgs.some(Boolean) || isOpen()) { el.classList.remove('show'); setActButton(null); return; }
     el.innerHTML = tgs.map((tg, i) => tg ? '<div>' + (coop ? '<span class="pl p' + (i + 1) + '">P' + (i + 1) + '</span>' : '') +
       '<kbd>' + ACT_KEY[i] + '</kbd> ' + esc(promptText(tg)) + '</div>' : '').join('');
-    el.classList.add('show'); btn.classList.toggle('ready', !!tgs[0]);
+    el.classList.add('show');
+    setActButton(tgs[0]);
   }
 
   // ------------------------------------------------------------------ interactions
@@ -375,7 +394,12 @@
     'P3–P4 ใช้จอยเกม (ก้านซ้ายเดิน ปุ่ม A โต้ตอบ ปุ่ม B วิ่ง) · กล้องจะซูมให้เห็นทุกคน</li></ul>';
   function helpPanel() { open(head('❓ วิธีเล่น') + HELP + '<div class="actions"><button data-act="close" class="primary">เข้าใจแล้ว</button></div>'); }
   function intro(autoRec) {
+    const touch = document.body.classList.contains('touch');
+    const invite = root.Net ? root.Net.cleanCode((location.hash.match(/join=(\w{6})/) || [])[1]) : '';
+    const inApp = /\bLine\/|FBAN|FBAV|Instagram/i.test(navigator.userAgent);
     open('<div class="intro"><div class="badge">เกมจำลองงาน จป.วิชาชีพ</div><h1>จป.ซัน แห่งเกาะพีพี</h1>' +
+      (invite ? '<div class="note invite">🎟️ คุณได้รับเชิญเข้าห้อง <b>' + esc(invite) + '</b> — ใส่ชื่อของคุณ แล้วกด <b>เข้าร่วม</b> ในการ์ดเล่นออนไลน์</div>' : '') +
+      (inApp ? '<div class="note">ℹ️ ถ้าเปิดจาก LINE แล้วเล่นออนไลน์ไม่ได้ ให้แตะ ⋮ หรือปุ่มแชร์ แล้วเลือก "เปิดในเบราว์เซอร์" (Chrome/Safari)</div>' : '') +
       '<p class="lead">คุณคือ <b>จป.วิชาชีพ</b> ของรีสอร์ตริมอ่าวบนเกาะพีพี ดูแลพนักงาน <b>204 คน</b> 12 แผนก และแขกที่หมุนเวียนตามฤดูกาล ' +
       'ทุกคนมีชื่อ มีเรื่องราว และ<b>จำได้</b>ว่าคุณเคยทำอะไรกับเขา</p>' +
       (autoRec ? '<div class="actions"><button data-act="intro:continue" class="primary">▶️ เล่นต่อจากที่บันทึกไว้ (วันที่ ' + (autoRec.day + 1) + (autoRec.players > 1 ? ' · ' + autoRec.players + ' คน' : '') + ')</button></div>' : '') +
@@ -389,10 +413,10 @@
       '<button data-act="intro:coop" class="primary">เริ่มเล่นกับเพื่อน</button></div>' +
       '<div class="mode online"><span class="ic">🌐</span><b>เล่นออนไลน์ ต่างเครื่อง</b><small>คนละที่ คนละ WiFi สูงสุด ' + Sim.MAX_PLAYERS + ' คน ส่งรหัสห้องให้เพื่อนทาง LINE</small>' +
       '<label class="pn"><span>ชื่อ จป.</span><input id="oname" maxlength="20" value="' + esc(G.players[0].character_name) + '"></label>' +
-      '<button data-act="online:host" class="primary">สร้างห้องใหม่ (เป็นเจ้าของห้อง)</button>' +
-      '<div class="joinrow"><input id="ocode" maxlength="7" placeholder="รหัสห้อง 6 ตัว" autocomplete="off"><button data-act="online:join">เข้าร่วม</button></div>' +
+      '<button data-act="online:host" class="' + (invite ? 'ghostbtn' : 'primary') + '">สร้างห้องใหม่ (เป็นเจ้าของห้อง)</button>' +
+      '<div class="joinrow"><input id="ocode" maxlength="7" placeholder="รหัสห้อง 6 ตัว" autocomplete="off" autocapitalize="characters" value="' + esc(invite) + '"><button data-act="online:join"' + (invite ? ' class="primary"' : '') + '>เข้าร่วม</button></div>' +
       '<p id="onstatus" class="muted"></p></div></div>' +
-      HELP +
+      '<details class="helpbox"' + (touch ? '' : ' open') + '><summary>❓ วิธีเล่น</summary>' + HELP + '</details>' +
       '<p class="muted">ตัวละครและรีสอร์ตในเกมเป็นเรื่องสมมติ ผังรีสอร์ตอิงลักษณะอ่าวบนเกาะพีพี ไม่ใช่ผังจริง · ' +
       'การเล่นกับเพื่อนต่างเครื่องผ่านอินเทอร์เน็ตต้องมีเซิร์ฟเวอร์ (ยังไม่มีในเวอร์ชันนี้)</p></div>', { locked: true, wide: true });
   }
@@ -424,8 +448,9 @@
       (p.id === Sim.P.id ? ' <small>(คุณ)</small>' : '') + '</li>').join('');
     open(head('🌐 ห้องออนไลน์') +
       '<div class="roomcode">' + esc(Net.room) + '</div>' +
-      '<div class="actions"><button data-act="copy" class="primary">📋 คัดลอกรหัสห้อง</button></div>' +
-      (Net.isHost ? '<p>ส่งรหัสนี้ให้เพื่อน แล้วให้เพื่อนเปิดลิงก์เกม → <b>เล่นออนไลน์ ต่างเครื่อง</b> → ใส่รหัส → <b>เข้าร่วม</b></p>' +
+      '<div class="actions"><button data-act="copylink" class="primary">🔗 คัดลอกลิงก์เชิญ (แนะนำ)</button><button data-act="copy">📋 คัดลอกเฉพาะรหัส</button>' +
+      (navigator.share ? '<button data-act="share">📤 แชร์ไป LINE</button>' : '') + '</div>' +
+      (Net.isHost ? '<p>ส่ง<b>ลิงก์เชิญ</b>ให้เพื่อน เพื่อนแตะลิงก์แล้วกด <b>เข้าร่วม</b> ได้เลย (หรือส่งรหัสห้อง ให้เพื่อนใส่เองในการ์ด <b>เล่นออนไลน์ ต่างเครื่อง</b>)</p>' +
         '<p class="muted">เครื่องของคุณเป็นเจ้าของห้อง ต้องเปิดเกมค้างไว้ ถ้าปิดหน้านี้ ห้องจะปิดและทุกคนจะหลุด · บันทึกเกมเก็บที่เครื่องคุณ</p>'
         : '<p class="muted">คุณเชื่อมต่อกับเจ้าของห้องอยู่ ความคืบหน้าบันทึกที่เครื่องเจ้าของห้อง</p>') +
       '<h3 class="coop-h">ผู้เล่นในห้อง (' + Sim.players().length + '/' + Sim.MAX_PLAYERS + ')</h3><ul class="list">' + list + '</ul>' +
@@ -554,9 +579,17 @@
       case 'day': if (v === 'next') { close(true); Sim.nextDay(); if (NetX()) root.Net.nextDay(); autosave(); } break;
       case 'room': roomPanel(); break;
       case 'leave': location.reload(); break;
-      case 'copy': {
+      case 'copy': case 'copylink': case 'share': {
         const code = root.Net && root.Net.room;
-        if (code && navigator.clipboard) navigator.clipboard.writeText(code).then(() => log('📋 คัดลอกรหัสห้อง ' + code + ' แล้ว', 'good'), () => {});
+        if (!code) break;
+        const link = location.origin + location.pathname + '#join=' + code;
+        const text = k === 'copy' ? code : link;
+        if (k === 'share' && navigator.share) {
+          navigator.share({ title: 'จป.ซัน แห่งเกาะพีพี', text: 'มาเล่นเกม จป. ด้วยกัน รหัสห้อง ' + code, url: link }).catch(() => {});
+        } else if (navigator.clipboard) {
+          navigator.clipboard.writeText(text).then(() => log(k === 'copy' ? '📋 คัดลอกรหัสห้อง ' + code + ' แล้ว' : '🔗 คัดลอกลิงก์เชิญแล้ว วางในแชต LINE ได้เลย', 'good'),
+            () => log('คัดลอกไม่สำเร็จ ให้จดรหัส ' + code + ' ส่งเพื่อนแทน', 'warn'));
+        }
         break;
       }
       case 'online': onlineAct(v); break;
@@ -578,17 +611,39 @@
     }
   }
 
+  function toggleFullscreen() {
+    const d = document, el = d.documentElement;
+    const isFull = d.fullscreenElement || d.webkitFullscreenElement;
+    try {
+      if (isFull) (d.exitFullscreen || d.webkitExitFullscreen).call(d);
+      else if (el.requestFullscreen) el.requestFullscreen({ navigationUI: 'hide' }).catch(() => fullscreenHint());
+      else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+      else fullscreenHint();
+    } catch (e) { fullscreenHint(); }
+  }
+  function fullscreenHint() {
+    log('📱 iPhone: แตะปุ่มแชร์ของ Safari → "เพิ่มไปยังหน้าจอโฮม" แล้วเปิดเกมจากไอคอน จะเล่นเต็มจอเหมือนแอป', 'info');
+  }
+
   function init() {
     $('panel').addEventListener('click', e => {
       const b = e.target.closest('[data-act]');
       if (b && !b.disabled) onAct(b.dataset.act);
       else if (e.target === $('panel')) close();
     });
-    document.querySelectorAll('[data-ui]').forEach(b => b.addEventListener('click', () => {
-      if (!Sim.S || Sim.S.over) return;
+    document.querySelectorAll('[data-ui]').forEach(b => b.addEventListener('click', e => {
+      e.stopPropagation();
       const u = b.dataset.ui;
+      if (u === 'full') { toggleFullscreen(); return; }
+      if (u === 'mapbtn') { document.body.classList.toggle('map-open'); return; }
+      if (!Sim.S || Sim.S.over) return;
       if (u === 'staff') staffPanel(); else if (u === 'log') logbook(); else if (u === 'ptw') ptwList(); else menuPanel();
     }));
+    // มือถือ: แตะแถบด้านบนเพื่อดู/ซ่อนรายละเอียด
+    $('hud').addEventListener('click', e => {
+      if (!document.body.classList.contains('touch') || e.target.closest('#h-net')) return;
+      document.body.classList.toggle('hud-open');
+    });
     $('file-import').addEventListener('change', e => {
       const f = e.target.files[0]; if (!f) return;
       const rd = new FileReader();

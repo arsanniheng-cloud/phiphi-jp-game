@@ -1021,10 +1021,12 @@
     }
     return best;
   }
-  function pickAt(x, y) {
-    for (const h of S.hazards) if (!h.done && (h.disc || h.rep) && Math.hypot(x - h.x, y - (h.y - 30)) < 22) return { type: 'hazard', obj: h };
-    for (const p of S.ptw) if (p.status === 'pending' && Math.hypot(x - p.x, y - (p.y - 30)) < 22) return { type: 'ptw', obj: p };
-    let best = null, bd = 20;
+  // scale > 1 บนมือถือ: เป้าหมายสำหรับนิ้วใหญ่กว่าเมาส์
+  function pickAt(x, y, scale) {
+    const k = scale || 1;
+    for (const h of S.hazards) if (!h.done && (h.disc || h.rep) && Math.hypot(x - h.x, y - (h.y - 30)) < 22 * k) return { type: 'hazard', obj: h };
+    for (const p of S.ptw) if (p.status === 'pending' && Math.hypot(x - p.x, y - (p.y - 30)) < 22 * k) return { type: 'ptw', obj: p };
+    let best = null, bd = 20 * k;
     for (const n of npcs) { if (!n.on || n.inside_t > 0) continue; const d = Math.hypot(x - n.x, y - (n.y - 18)); if (d < bd) { bd = d; best = { type: 'npc', obj: n }; } }
     for (const g of guests) { const d = Math.hypot(x - g.x, y - (g.y - 18)); if (d < bd) { bd = d; best = { type: 'guest', obj: g }; } }
     return best;
