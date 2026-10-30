@@ -397,7 +397,8 @@
     const touch = document.body.classList.contains('touch');
     const invite = root.Net ? root.Net.cleanCode((location.hash.match(/join=(\w{6})/) || [])[1]) : '';
     const inApp = /\bLine\/|FBAN|FBAV|Instagram/i.test(navigator.userAgent);
-    open('<div class="intro"><div class="badge">เกมจำลองงาน จป.วิชาชีพ</div><h1>จป.ซัน แห่งเกาะพีพี</h1>' +
+    open('<div class="intro"><div class="topline"><div class="badge">เกมจำลองงาน จป.วิชาชีพ</div>' +
+      (touch ? '<button data-act="land" class="landbtn">' + landLabel() + '</button>' : '') + '</div><h1>จป.ซัน แห่งเกาะพีพี</h1>' +
       (invite ? '<div class="note invite">🎟️ คุณได้รับเชิญเข้าห้อง <b>' + esc(invite) + '</b> — ใส่ชื่อของคุณ แล้วกด <b>เข้าร่วม</b> ในการ์ดเล่นออนไลน์</div>' : '') +
       (inApp ? '<div class="note">ℹ️ ถ้าเปิดจาก LINE แล้วเล่นออนไลน์ไม่ได้ ให้แตะ ⋮ หรือปุ่มแชร์ แล้วเลือก "เปิดในเบราว์เซอร์" (Chrome/Safari)</div>' : '') +
       '<p class="lead">คุณคือ <b>จป.วิชาชีพ</b> ของรีสอร์ตริมอ่าวบนเกาะพีพี ดูแลพนักงาน <b>204 คน</b> 12 แผนก และแขกที่หมุนเวียนตามฤดูกาล ' +
@@ -592,6 +593,7 @@
         break;
       }
       case 'online': onlineAct(v); break;
+      case 'land': toggleLand(); break;
       case 'intro':
         if (v === 'solo' || v === 'new') { Sim.newGame({ count: 1 }); close(true); }
         else if (v === 'coop') {
@@ -620,6 +622,15 @@
       else fullscreenHint();
     } catch (e) { fullscreenHint(); }
   }
+  // สลับเล่นแนวนอน/แนวตั้ง (main.js เป็นคนหมุนหน้าเกม)
+  const landOn = () => !!(root.GameView && root.GameView.isLand());
+  const landLabel = () => (landOn() ? '📱 กลับเป็นแนวตั้ง' : '🔄 เล่นแนวนอน (ตะแคงมือถือ)');
+  function toggleLand() {
+    if (!root.GameView) return;
+    root.GameView.toggleLand();
+    document.querySelectorAll('[data-act="land"]').forEach(b => { b.textContent = landLabel(); });
+    log(landOn() ? '🔄 แนวนอน: ตะแคงมือถือได้เลย (ไม่ต้องเปิดหมุนจออัตโนมัติ) · กดปุ่ม 🔄 อีกครั้งเพื่อกลับแนวตั้ง' : '📱 กลับเป็นแนวตั้งแล้ว', 'info');
+  }
   function fullscreenHint() {
     log('📱 iPhone: แตะปุ่มแชร์ของ Safari → "เพิ่มไปยังหน้าจอโฮม" แล้วเปิดเกมจากไอคอน จะเล่นเต็มจอเหมือนแอป', 'info');
   }
@@ -634,6 +645,7 @@
       e.stopPropagation();
       const u = b.dataset.ui;
       if (u === 'full') { toggleFullscreen(); return; }
+      if (u === 'land') { toggleLand(); return; }
       if (u === 'mapbtn') { document.body.classList.toggle('map-open'); return; }
       if (!Sim.S || Sim.S.over) return;
       if (u === 'staff') staffPanel(); else if (u === 'log') logbook(); else if (u === 'ptw') ptwList(); else menuPanel();

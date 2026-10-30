@@ -29,10 +29,66 @@
   const touch = /[#&]touch\b/.test(location.hash) || matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
   if (touch) document.body.classList.add('touch');
 
+  // ------------------------------------------------------------------ แนวนอน
+  // ถ้าเบราว์เซอร์หมุนตามมือถือได้ ใช้แนวนอนจริง (Android Chrome: เต็มจอ + ล็อกแนวนอน)
+  // ถ้าหมุนไม่ได้ (ปิดหมุนจออัตโนมัติ / เบราว์เซอร์ใน LINE) หมุนหน้าเกมทั้งหน้าเองด้วย CSS
+  const inApp = /\bLine\/|FBAN|FBAV|Instagram/i.test(navigator.userAgent);
+  let landPref = false, ROT = 0, tiltDir = 1, tiltN = 0, landFull = false;
+  try { landPref = localStorage.getItem('jp_land') === '1'; } catch (e) { /* โหมดส่วนตัว */ }
+  function applyRot() {
+    const iw = window.innerWidth, ih = window.innerHeight, b = document.body, st = b.style;
+    ROT = touch && landPref && ih > iw ? (tiltDir < 0 ? -90 : 90) : 0;
+    if (ROT) {
+      st.width = ih + 'px'; st.height = iw + 'px';
+      st.transform = ROT === 90 ? 'translateX(' + iw + 'px) rotate(90deg)' : 'translateY(' + ih + 'px) rotate(-90deg)';
+    } else st.width = st.height = st.transform = '';
+    const fw = ROT ? ih : iw, fh = ROT ? iw : ih;
+    b.classList.toggle('rot', !!ROT);
+    b.classList.toggle('lands', touch && fw > fh && fh <= 500);   // จัดหน้าแบบจอเตี้ย (แนวนอน)
+    b.classList.toggle('landpref', landPref);
+    document.documentElement.style.setProperty('--fw', fw + 'px');
+    document.documentElement.style.setProperty('--fh', fh + 'px');
+  }
+  // พิกัดนิ้ว/เมาส์บนจอจริง → พิกัดในหน้าเกม (ตอนหมุนหน้าเกมเอง)
+  function fxy(x, y) {
+    if (ROT === 90) return [y, window.innerWidth - x];
+    if (ROT === -90) return [window.innerHeight - y, x];
+    return [x, y];
+  }
+  function setLand(on) {
+    landPref = !!on;
+    try { localStorage.setItem('jp_land', landPref ? '1' : '0'); } catch (e) { /* โหมดส่วนตัว */ }
+    const d = document, so = screen.orientation;
+    if (landPref && !inApp && so && so.lock && d.documentElement.requestFullscreen && !d.fullscreenElement && window.innerHeight > window.innerWidth) {
+      d.documentElement.requestFullscreen({ navigationUI: 'hide' })
+        .then(() => { landFull = true; return so.lock('landscape'); })
+        .catch(() => { /* ล็อกไม่ได้: หมุนหน้าเกมเองแทน */ })
+        .then(() => resize());
+    } else if (!landPref) {
+      try { if (so && so.unlock) so.unlock(); } catch (e) { /* ไม่รองรับ */ }
+      if (landFull && d.fullscreenElement && d.exitFullscreen) d.exitFullscreen().catch(() => {});
+      landFull = false;
+    }
+    resize();
+  }
+  // ถือมือถือเอียงซ้ายหรือขวา: ดูจากเซนเซอร์ (Android) แล้วกลับด้านหน้าเกมให้ตั้งตรง
+  window.addEventListener('devicemotion', e => {
+    if (!landPref || window.innerWidth > window.innerHeight) return;
+    const g = e.accelerationIncludingGravity;
+    if (!g || typeof g.x !== 'number') return;
+    const dir = g.x > 6 ? 1 : g.x < -6 ? -1 : 0;
+    if (dir && dir !== tiltDir) { if (++tiltN > 20) { tiltDir = dir; tiltN = 0; resize(); } } else tiltN = 0;
+  });
+  window.GameView = { toggleLand: () => setLand(!landPref), isLand: () => landPref };
+
   // ------------------------------------------------------------------ viewport
   function resize() {
+    // ตอนหมุนหน้าเกมเองแล้วแป้นพิมพ์เด้งขึ้น (พิมพ์ชื่อ): ไม่ต้องจัดหน้าใหม่
+    const ae = document.activeElement;
+    if (ROT && ae && /^(INPUT|TEXTAREA)$/.test(ae.tagName)) return;
+    applyRot();
     DPR = Math.min(window.devicePixelRatio || 1, touch ? 1.75 : 2);   // มือถือ: จำกัดความละเอียดเพื่อให้ลื่น
-    VW = window.innerWidth; VH = window.innerHeight;
+    VW = ROT ? window.innerHeight : window.innerWidth; VH = ROT ? window.innerWidth : window.innerHeight;
     cv.width = Math.round(VW * DPR); cv.height = Math.round(VH * DPR);
     cv.style.width = VW + 'px'; cv.style.height = VH + 'px';
     // มือถือ: ซูมใกล้กว่าคอม ตัวละครจะได้ไม่เล็กเกินไป
@@ -118,9 +174,9 @@
   };
   cv.addEventListener('pointerup', ptrEnd);
   cv.addEventListener('pointercancel', ptrEnd);
-  function tapAt(cx, cy) {
+  function tapAt(clientX, clientY) {
     if (!Sim.S || UI.isOpen() || Sim.S.over) return;
-    const w = toWorld(cx, cy);
+    const f = fxy(clientX, clientY), w = toWorld(f[0], f[1]);
     const tg = Sim.pickAt(w.x, w.y, touch ? 1.8 : 1);
     if (tg) {
       const o = tg.obj;
@@ -131,14 +187,16 @@
   }
   miniCv.addEventListener('pointerdown', e => {
     if (!Sim.S || UI.isOpen()) return;
-    const r = miniCv.getBoundingClientRect();
-    const x = (e.clientX - r.left) / r.width * Wd.W, y = (e.clientY - r.top) / r.height * Wd.H;
+    // offsetX/Y นับในตัวแผนที่เอง จึงถูกต้องแม้หน้าเกมถูกหมุน
+    const x = e.offsetX / (miniCv.clientWidth || 1) * Wd.W, y = e.offsetY / (miniCv.clientHeight || 1) * Wd.H;
     if (Wd.walkable(x, y)) Sim.goTo(x, y);
   });
 
   // ---- จอยบังคับ: จอยมุมซ้ายล่าง หรือ "จอยลอย" ที่เกิดตรงจุดที่นิ้วเริ่มลากบนฉาก
   const joyEl = document.getElementById('joy'), stick = document.getElementById('stick');
-  function startJoy(cx, cy, floating) {
+  // รับพิกัดจอจริง (clientX/Y) แล้วแปลงเป็นพิกัดในหน้าเกม
+  function startJoy(clientX, clientY, floating) {
+    const f = fxy(clientX, clientY), cx = f[0], cy = f[1];
     joy.active = true; joy.cx = cx; joy.cy = cy; joy.x = joy.y = 0;
     if (floating) {
       const s = joyEl.offsetWidth || 136;
@@ -146,8 +204,9 @@
       joyEl.style.left = Math.round(cx - s / 2) + 'px'; joyEl.style.top = Math.round(cy - s / 2) + 'px'; joyEl.style.bottom = 'auto';
     }
   }
-  function moveJoy(px, py) {
-    let dx = px - joy.cx, dy = py - joy.cy;
+  function moveJoy(clientX, clientY) {
+    const f = fxy(clientX, clientY);
+    let dx = f[0] - joy.cx, dy = f[1] - joy.cy;
     const l = Math.hypot(dx, dy), m = joyEl.offsetWidth * 0.36 || 46;
     if (l > m) { dx = dx / l * m; dy = dy / l * m; }
     joy.x = dx / m; joy.y = dy / m;

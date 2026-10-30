@@ -15,6 +15,8 @@
   --warn: #ffcc4d;
   --radius: 14px;
   --font: "Sarabun", "Leelawadee UI", Tahoma, sans-serif;
+  --fw: 100vw;   /* ขนาดหน้าเกม (main.js ตั้งค่าจริง: ตอนหมุนหน้าเกมเอง กว้าง/สูงจะสลับกับจอ) */
+  --fh: 100vh;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; overflow: hidden; background: #0a5c98; color: var(--text); font-family: var(--font); }
@@ -318,8 +320,8 @@ body.touch.map-open #minimap { display: block; }
 body.touch.map-open #tools button[data-ui="mapbtn"] { background: var(--accent); }
 
 /* ข้อความข่าว: ใต้แถบบน ไม่บังปุ่ม แสดง 2 ข้อความล่าสุด */
-body.touch #feed { top: calc(84px + env(safe-area-inset-top)); bottom: auto; left: calc(8px + env(safe-area-inset-left)); width: calc(100vw - 90px); max-width: 420px; gap: 4px; }
-body.touch.map-open #feed { width: calc(100vw - 210px); }
+body.touch #feed { top: calc(84px + env(safe-area-inset-top)); bottom: auto; left: calc(8px + env(safe-area-inset-left)); width: calc(var(--fw) - 90px); max-width: 420px; gap: 4px; }
+body.touch.map-open #feed { width: calc(var(--fw) - 210px); }
 body.touch .feed-item { font-size: 12px; padding: 5px 9px; }
 body.touch .feed-item:nth-child(n+3) { display: none; }
 body.touch.hud-open #feed { display: none; }
@@ -342,7 +344,7 @@ body.touch #joy.floating { background: rgba(14,26,36,.28); border-color: rgba(25
 /* คำแนะนำวิธีเดินตอนเริ่มเกม */
 #hint { display: none; }
 body.touch.playing #hint { display: block; position: fixed; left: 50%; bottom: calc(184px + env(safe-area-inset-bottom)); z-index: 5;
-  width: max-content; max-width: calc(100vw - 32px); transform: translateX(-50%); text-align: center; pointer-events: none;
+  width: max-content; max-width: calc(var(--fw) - 32px); transform: translateX(-50%); text-align: center; pointer-events: none;
   background: rgba(14,26,36,.92); border: 2px solid var(--accent); border-radius: 14px; padding: 10px 16px; font-size: 15px; line-height: 1.45;
   box-shadow: 0 8px 22px rgba(0,0,0,.4); animation: hintBob 1.6s ease-in-out infinite; transition: opacity .8s; }
 #hint small { color: var(--muted); font-size: 13px; }
@@ -351,7 +353,7 @@ body.touch.playing #hint { display: block; position: fixed; left: 50%; bottom: c
 
 /* หน้าต่าง: เลื่อนขึ้นจากด้านล่าง ปุ่มใหญ่กดง่าย */
 body.touch #panel { align-items: flex-end; padding: 0; }
-body.touch #card, body.touch #panel.wide #card { width: 100%; max-width: 760px; max-height: 84vh; border-radius: 18px 18px 0 0;
+body.touch #card, body.touch #panel.wide #card { width: 100%; max-width: 760px; max-height: calc(var(--fh) * .84); border-radius: 18px 18px 0 0;
   padding: 14px calc(14px + env(safe-area-inset-right)) calc(18px + env(safe-area-inset-bottom)) calc(14px + env(safe-area-inset-left));
   animation: sheet .2s ease-out; }
 @keyframes sheet { from { transform: translateY(40px); opacity: 0; } }
@@ -379,19 +381,32 @@ body.touch .mode.online .joinrow button { min-height: 46px; }
   .tbl td .bar { width: 46px; }
 }
 @media (max-width: 400px) {
-  body.touch #h-season { max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
-  body.touch .meter { font-size: 12px; padding: 3px 4px 7px; }
+  body.touch:not(.rot) #h-season { max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
+  body.touch:not(.rot) .meter { font-size: 12px; padding: 3px 4px 7px; }
 }
-/* มือถือแนวนอน (จอเตี้ย) */
-@media (max-height: 500px) {
-  body.touch .meters { grid-template-columns: repeat(4, minmax(64px, 110px)); }
-  body.touch #feed { top: calc(64px + env(safe-area-inset-top)); }
-  body.touch #side { bottom: calc(108px + env(safe-area-inset-bottom)); }
-  body.touch #tools { flex-direction: row; }
-  body.touch #tools button { width: 44px; height: 44px; }
-  body.touch #joy { width: 116px; height: 116px; }
-  body.touch #stick { left: 33px; top: 33px; width: 50px; height: 50px; }
-  body.touch #act { width: 78px; height: 78px; }
-  body.touch #card, body.touch #panel.wide #card { max-height: 92vh; }
-  body.touch #minimap { top: calc(62px + env(safe-area-inset-top)); width: 150px; height: 100px; }
+/* มือถือแนวตั้งจอสั้น: ปุ่มด้านขวา 7 ปุ่มต้องไม่ชนแถบบน */
+@media (max-height: 640px) {
+  body.touch:not(.lands) #tools { gap: 7px; }
+  body.touch:not(.lands) #tools button { width: 44px; height: 44px; }
+  body.touch:not(.lands) #tools .ic { font-size: 19px; }
 }
+/* มือถือแนวนอน (จอเตี้ย): ทั้งหมุนมือถือจริง และตอนหมุนหน้าเกมเอง · main.js ใส่คลาส lands ให้ */
+body.touch.lands .meters { grid-template-columns: repeat(4, minmax(64px, 110px)); }
+body.touch.lands #feed { top: calc(64px + env(safe-area-inset-top)); }
+body.touch.lands #side { bottom: calc(108px + env(safe-area-inset-bottom)); }
+body.touch.lands #tools { flex-direction: row; }
+body.touch.lands #tools button { width: 44px; height: 44px; }
+body.touch.lands #joy { width: 116px; height: 116px; }
+body.touch.lands #stick { left: 33px; top: 33px; width: 50px; height: 50px; }
+body.touch.lands #act { width: 78px; height: 78px; }
+body.touch.lands #card, body.touch.lands #panel.wide #card { max-height: calc(var(--fh) * .92); }
+body.touch.lands #minimap { top: calc(62px + env(safe-area-inset-top)); width: 150px; height: 100px; }
+body.touch.lands.playing #hint { bottom: calc(12px + env(safe-area-inset-bottom)); max-width: calc(var(--fw) - 300px); font-size: 14px; padding: 8px 14px; }
+
+/* หมุนหน้าเกมเอง (มือถือล็อกจอแนวตั้ง): ทั้งหน้าหมุน 90° · ขนาดและทิศทางตั้งจาก main.js */
+body.rot { position: fixed; left: 0; top: 0; transform-origin: 0 0; }
+body.touch.landpref #tools button[data-ui="land"] { background: var(--accent); }
+.intro .topline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.landbtn { margin-left: auto; background: rgba(255,255,255,.1); color: var(--text); border: 1px solid rgba(255,255,255,.3); border-radius: 999px;
+  padding: 7px 14px; font: 600 14px var(--font); cursor: pointer; min-height: 38px; }
+body.landpref .landbtn { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
