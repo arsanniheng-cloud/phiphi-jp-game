@@ -757,7 +757,8 @@
         ' memP2 ' + Sim.S.memories.filter(m => m.player_id === 2).length + ' looks ' + JSON.stringify(Sim.S.players.map(p => [p.id, p.name, p.look]))), 3000);
     }
     if (mode === 'netjoin' && room) {
-      window.Net.join(room, 'จป.ทดสอบ', { gender: 'F', skin: 3, hair: 4, hair_style: 2, vest: 5 }).then(r => {
+      window.Net.join(room, 'จป.ทดสอบ', { gender: 'F', skin: 3, hair: 4, hair_style: 2, vest: 5 }, m => console.log('NETJOIN status ' + m), { relayOnly: /relay=1/.test(location.hash) }).then(r => {
+        console.log('NETJOIN via ' + (r.relay ? 'RELAY' : 'DIRECT'));
         console.log('NETJOIN welcome ' + JSON.stringify(r));
         setTimeout(() => {
           const S2 = Sim.S;

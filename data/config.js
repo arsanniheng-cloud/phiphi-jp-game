@@ -13,6 +13,9 @@ GAME_DATA.config = {
   // ใส่ TURN ของบริการที่สมัครไว้ได้ที่ online_turn เช่น { urls: ['turn:…:80', 'turns:…:443?transport=tcp'], username: '…', credential: '…' }
   online_stun: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun.cloudflare.com:3478'],
   online_turn: [],
+  // ทางสำรองเมื่อต่อตรงไม่ติด: ส่งต่อข้อความผ่านเซิร์ฟเวอร์ MQTT สาธารณะ (WebSocket) ข้อมูลเข้ารหัสด้วยรหัสห้องก่อนส่งเสมอ
+  // เจ้าของห้องฟังทุกตัวพร้อมกัน ผู้ร่วมเล่นใช้ตัวแรกที่ต่อติด · ถ้าแก้รายการนี้ต้องแก้ connect-src ใน index.html ด้วย
+  online_relay: ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081/mqtt'],
 
   time: {
     start_hour: 6,            // เริ่มกะเช้า 06:00
