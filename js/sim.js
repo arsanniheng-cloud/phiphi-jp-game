@@ -1232,6 +1232,11 @@
     }
   }
   function activityById(id) { return S.activities.find(a => a.id === id) || null; }
+  // ผู้เข้าร่วมประชุม/อบรมนัดนี้ (ใช้วาดฉากประชุม/อบรม)
+  function attendeesOf(a) {
+    const ids = (a && a.attendee_ids) || [];
+    return npcs.filter(n => ids.indexOf(n.id) >= 0).map(n => ({ name: n.name, department_id: n.department_id, L: n.L }));
+  }
 
   // ---- ประชุม คปอ.
   function kpoAgenda(a) {
@@ -1609,7 +1614,7 @@
     nextDay, toggleSeason, deptStats, callName, topMemory, spawnHazard, CAUSES,
     DEPT, HT, LOC, P, PLAYER, players, pinfo, freshStats,
     MAX_PLAYERS, get P2() { return PLS[1] || null; }, get actor() { return actor; }, setActor: pl => { actor = pl || P; },
-    setFocus, schedule, cancelActivity, activityById, kpoAgenda, finishKpo, trainingQuiz, finishTraining, cleanLook,
+    setFocus, schedule, cancelActivity, activityById, attendeesOf, kpoAgenda, finishKpo, trainingQuiz, finishTraining, cleanLook,
     FOCUS, TOPIC, KPO, PROP, AV,
     get net() { return NET; }, setNet: m => { NET = m; }, addRemotePlayer, removeRemotePlayer, netSetPos, netSnapshot,
     netStartClient, netApply, npcModel, applyNpcModel,

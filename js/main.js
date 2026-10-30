@@ -6,7 +6,7 @@
   const G = window.GAME_DATA, A = window.Art, Wd = window.World, Sim = window.Sim, UI = window.UI, DB = window.GameDB;
   const cv = document.getElementById('game'), ctx = cv.getContext('2d');
   const miniCv = document.getElementById('minimap'), mctx = miniCv.getContext('2d');
-  let VW = 0, VH = 0, DPR = 1, Z = 1, zoomMul = 1, camX = 0, camY = 0, camInit = false;
+  let VW = 0, VH = 0, DPR = 1, dprCap = 9, Z = 1, zoomMul = 1, camX = 0, camY = 0, camInit = false;
   const keys = {};
   const joy = { active: false, x: 0, y: 0, id: null, cx: 0, cy: 0 };
   let last = performance.now(), hudT = 0, targets = [], flashT = 0, clickFx = null, curZ = 0;
@@ -95,7 +95,8 @@
     const ae = document.activeElement;
     if (ROT && ae && /^(INPUT|TEXTAREA)$/.test(ae.tagName)) return;
     applyRot();
-    DPR = Math.min(window.devicePixelRatio || 1, touch ? 1.75 : 2);   // มือถือ: จำกัดความละเอียดเพื่อให้ลื่น
+    DPR = Math.min(window.devicePixelRatio || 1, touch ? 1.75 : 2, dprCap);   // มือถือ: จำกัดความละเอียดเพื่อให้ลื่น (เครื่องช้ามากจะลดลงอีกอัตโนมัติ)
+    A.personCacheInit(touch && DPR < 1.4 ? 1.5 : 2);
     VW = ROT ? window.innerHeight : window.innerWidth; VH = ROT ? window.innerWidth : window.innerHeight;
     cv.width = Math.round(VW * DPR); cv.height = Math.round(VH * DPR);
     cv.style.width = VW + 'px'; cv.style.height = VH + 'px';
@@ -379,17 +380,17 @@
   function drawEntity(e, t, S) {
     if (e.kind === 'npc') {
       const n = e.n;
-      A.person(ctx, n.x, n.y, n.L, n.dir, n.phase, n.moving, n.hurt_t > 0 ? { alpha: 0.8 } : null);
+      A.drawPerson(ctx, n.x, n.y, n.L, n.dir, n.phase, n.moving, n.hurt_t > 0 ? { alpha: 0.8 } : null);
       const d = Math.hypot(Sim.P.x - n.x, Sim.P.y - n.y);
       if (n.hurt_t > 0) badge(n.x, n.y - 50, '#e03131', '✚');
       else if (n.ppe_missing && d < 170) warnTri(n.x, n.y - 50);
     } else if (e.kind === 'guest') {
-      A.person(ctx, e.g.x, e.g.y, e.g.L, e.g.dir, e.g.phase, e.g.moving, { scale: 0.95 });
+      A.drawPerson(ctx, e.g.x, e.g.y, e.g.L, e.g.dir, e.g.phase, e.g.moving, { scale: 0.95 });
     } else if (e.kind === 'player') {
       const P = e.pl, k = (P.id - 1) % LOOKS.length;
       ctx.strokeStyle = PCOL[k]; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.ellipse(P.x, P.y, 13 + Math.sin(t * 4) * 1.5, 5.5, 0, 0, Math.PI * 2); ctx.stroke();
-      A.person(ctx, P.x, P.y, lookOf(P), P.dir, P.phase, P.moving, { clipboard: true, scale: 1.08 });
+      A.drawPerson(ctx, P.x, P.y, lookOf(P), P.dir, P.phase, P.moving, { clipboard: true, scale: 1.08 });
       if (coop()) {
         const txt = 'P' + P.id + ' ' + Sim.pinfo(P.id).name;
         ctx.font = '700 11px ' + A.FONT; ctx.textAlign = 'center';
@@ -478,7 +479,8 @@
     ctx.font = '600 ' + (12 * s).toFixed(1) + 'px ' + A.FONT; ctx.textAlign = 'center';
     for (const l of Wd.labels) {
       if (l.x < view.x - 160 || l.x > view.x + view.w + 160 || l.y < view.y - 30 || l.y > view.y + view.h + 30) continue;
-      const w = ctx.measureText(l.text).width + 14 * s;
+      if (l._ws !== s) { l._w = ctx.measureText(l.text).width; l._ws = s; }       // วัดความกว้างข้อความครั้งเดียว (วัดทุกเฟรมช้าบนมือถือ)
+      const w = l._w + 14 * s;
       ctx.fillStyle = 'rgba(18,28,38,.62)'; A.rr(ctx, l.x - w / 2, l.y - 10 * s, w, 19 * s, 9.5 * s); ctx.fill();
       ctx.fillStyle = '#ffffff'; ctx.fillText(l.text, l.x, l.y + 4 * s);
     }
@@ -602,6 +604,7 @@
   function render(t, dt) {
     const S = Sim.S;
     const pls = Sim.players();
+    A.personCacheFrame(8);
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     ctx.fillStyle = '#0a5c98'; ctx.fillRect(0, 0, VW, VH);
     // กล้อง: เล่นเครื่องเดียวกันหลายคน = จับกึ่งกลางทุกคนและซูมออกให้เห็นครบ · ออนไลน์ = ตามตัวเราเอง
@@ -645,10 +648,14 @@
     return view;
   }
 
-  let lastView = null;
+  let lastView = null, slowT = 0;
   function frame(now) {
-    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    const raw = (now - last) / 1000;
+    const dt = Math.min(0.05, raw); last = now;
     const t = now / 1000;
+    // เครื่องช้า: ถ้าเฟรมนานเกิน ~36 มิลลิวินาทีต่อเนื่องราว 2 วินาที ลดความละเอียดภาพลงทีละขั้น (ต่ำสุด 1.0) เพื่อให้เล่นลื่นขึ้น
+    if (raw > 0.036 && raw < 0.5) slowT += raw; else slowT = Math.max(0, slowT - raw * 0.5);
+    if (slowT > 2 && DPR > 1.01) { slowT = -1.5; dprCap = Math.max(1, DPR - 0.25); resize(); }
     if (Sim.S) {
       const pls = Sim.players();
       Sim.update(dt, playerInputs(pls));
