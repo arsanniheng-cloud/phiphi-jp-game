@@ -82,10 +82,17 @@
   window.addEventListener('blur', () => { [keys, keys2].forEach(o => Object.keys(o).forEach(k => { o[k] = false; })); });
 
   cv.addEventListener('wheel', e => { e.preventDefault(); setZoom(e.deltaY < 0 ? 1.1 : 1 / 1.1); }, { passive: false });
-  // แตะ/คลิกเพื่อเดินไป (ทำงานตอนปล่อยนิ้ว) · สองนิ้วถ่างหรือหุบเพื่อซูม
+  // นิ้วใช้ touch events (แยกจากเมาส์) แล้วสั่ง preventDefault ทุกครั้ง:
+  // เบราว์เซอร์ในแอป LINE/Facebook บางรุ่นแย่งท่าลากนิ้วไปเลื่อนหรือปิดหน้า ทำให้จอยหลุดและเดินไม่ได้
+  const TOUCH_EV = 'ontouchstart' in window;
+  const byFinger = e => TOUCH_EV && e.pointerType === 'touch';
+  const NOPASS = { passive: false };
+  const canPlay = () => !!(Sim.S && !UI.isOpen() && !Sim.S.over);
+  // เมาส์/ปากกา: คลิกที่พื้นเพื่อเดินไป (ทำงานตอนปล่อยปุ่ม)
   const ptrs = new Map();
   let pinch = null, tapStart = null;
   cv.addEventListener('pointerdown', e => {
+    if (byFinger(e)) return;
     ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (ptrs.size === 2) {
       const [a, b] = [...ptrs.values()];
@@ -94,7 +101,7 @@
     } else if (ptrs.size === 1) tapStart = { x: e.clientX, y: e.clientY, id: e.pointerId };
   });
   cv.addEventListener('pointermove', e => {
-    if (!ptrs.has(e.pointerId)) return;
+    if (byFinger(e) || !ptrs.has(e.pointerId)) return;
     ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pinch && ptrs.size >= 2) {
       const [a, b] = [...ptrs.values()];
@@ -103,6 +110,7 @@
     } else if (tapStart && Math.hypot(e.clientX - tapStart.x, e.clientY - tapStart.y) > 14) tapStart = null;
   });
   const ptrEnd = e => {
+    if (byFinger(e)) return;
     const wasTap = e.type === 'pointerup' && tapStart && tapStart.id === e.pointerId && !pinch;
     ptrs.delete(e.pointerId);
     if (!ptrs.size) { pinch = null; tapStart = null; }
@@ -128,23 +136,125 @@
     if (Wd.walkable(x, y)) Sim.goTo(x, y);
   });
 
+  // ---- จอยบังคับ: จอยมุมซ้ายล่าง หรือ "จอยลอย" ที่เกิดตรงจุดที่นิ้วเริ่มลากบนฉาก
   const joyEl = document.getElementById('joy'), stick = document.getElementById('stick');
-  joyEl.addEventListener('pointerdown', e => {
-    joy.active = true; joy.id = e.pointerId;
-    const r = joyEl.getBoundingClientRect(); joy.cx = r.left + r.width / 2; joy.cy = r.top + r.height / 2;
-    joyEl.setPointerCapture(e.pointerId); moveJoy(e);
-  });
-  joyEl.addEventListener('pointermove', e => { if (joy.active && e.pointerId === joy.id) moveJoy(e); });
-  const endJoy = () => { joy.active = false; joy.x = joy.y = 0; stick.style.transform = ''; };
-  joyEl.addEventListener('pointerup', endJoy); joyEl.addEventListener('pointercancel', endJoy);
-  function moveJoy(e) {
-    let dx = e.clientX - joy.cx, dy = e.clientY - joy.cy;
+  function startJoy(cx, cy, floating) {
+    joy.active = true; joy.cx = cx; joy.cy = cy; joy.x = joy.y = 0;
+    if (floating) {
+      const s = joyEl.offsetWidth || 136;
+      joyEl.classList.add('floating');
+      joyEl.style.left = Math.round(cx - s / 2) + 'px'; joyEl.style.top = Math.round(cy - s / 2) + 'px'; joyEl.style.bottom = 'auto';
+    }
+  }
+  function moveJoy(px, py) {
+    let dx = px - joy.cx, dy = py - joy.cy;
     const l = Math.hypot(dx, dy), m = joyEl.offsetWidth * 0.36 || 46;
     if (l > m) { dx = dx / l * m; dy = dy / l * m; }
     joy.x = dx / m; joy.y = dy / m;
     stick.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
   }
+  function endJoy() {
+    joy.active = false; joy.x = joy.y = 0; joy.id = null; stick.style.transform = '';
+    if (joyEl.classList.contains('floating')) { joyEl.classList.remove('floating'); joyEl.style.left = joyEl.style.top = joyEl.style.bottom = ''; }
+  }
+  const joyCenter = () => { const r = joyEl.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
+  // จอยมุมซ้ายล่าง: นิ้ว
+  joyEl.addEventListener('touchstart', e => {
+    e.preventDefault();
+    if (joy.active) return;
+    const t = e.changedTouches[0], c = joyCenter();
+    joy.id = 't' + t.identifier;
+    startJoy(c[0], c[1], false); moveJoy(t.clientX, t.clientY);
+  }, NOPASS);
+  joyEl.addEventListener('touchmove', e => {
+    e.preventDefault();
+    for (const t of e.changedTouches) if (joy.id === 't' + t.identifier) moveJoy(t.clientX, t.clientY);
+  }, NOPASS);
+  const joyTouchEnd = e => { e.preventDefault(); for (const t of e.changedTouches) if (joy.id === 't' + t.identifier) endJoy(); };
+  joyEl.addEventListener('touchend', joyTouchEnd, NOPASS);
+  joyEl.addEventListener('touchcancel', joyTouchEnd, NOPASS);
+  // จอยมุมซ้ายล่าง: เมาส์ (ทดสอบบนคอมด้วย #touch)
+  joyEl.addEventListener('pointerdown', e => {
+    if (byFinger(e) || joy.active) return;
+    const c = joyCenter();
+    joy.id = 'p' + e.pointerId;
+    startJoy(c[0], c[1], false);
+    try { joyEl.setPointerCapture(e.pointerId); } catch (err) { /* บางเบราว์เซอร์ไม่รองรับ */ }
+    moveJoy(e.clientX, e.clientY);
+  });
+  joyEl.addEventListener('pointermove', e => { if (!byFinger(e) && joy.id === 'p' + e.pointerId) moveJoy(e.clientX, e.clientY); });
+  const joyPtrEnd = e => { if (!byFinger(e) && joy.id === 'p' + e.pointerId) endJoy(); };
+  joyEl.addEventListener('pointerup', joyPtrEnd);
+  joyEl.addEventListener('pointercancel', joyPtrEnd);
+
+  // ---- นิ้วบนฉาก: แตะ = เดินไปตรงนั้น/คุย · ลากนิ้ว = จอยลอย · สองนิ้วถ่าง/หุบ = ซูม
+  const fingers = new Map();
+  let fPinch = null, fTap = null, fFloat = null;
+  cv.addEventListener('touchstart', e => {
+    e.preventDefault();
+    for (const t of e.changedTouches) fingers.set(t.identifier, { x: t.clientX, y: t.clientY, x0: t.clientX, y0: t.clientY });
+    if (fingers.size >= 2) {
+      const [a, b] = [...fingers.values()];
+      fPinch = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, z: zoomMul };
+      fTap = null;
+      if (fFloat !== null) { fFloat = null; endJoy(); }
+    } else if (!fPinch) fTap = e.changedTouches[0].identifier;
+  }, NOPASS);
+  cv.addEventListener('touchmove', e => {
+    e.preventDefault();
+    for (const t of e.changedTouches) { const f = fingers.get(t.identifier); if (f) { f.x = t.clientX; f.y = t.clientY; } }
+    if (fPinch) {
+      if (fingers.size >= 2) {
+        const [a, b] = [...fingers.values()];
+        zoomMul = Math.max(0.6, Math.min(2, fPinch.z * (Math.hypot(a.x - b.x, a.y - b.y) || 1) / fPinch.d));
+        resize();
+      }
+      return;
+    }
+    if (fTap !== null) {
+      const f = fingers.get(fTap);
+      if (f && Math.hypot(f.x - f.x0, f.y - f.y0) > 14 && !joy.active && canPlay()) { fFloat = fTap; fTap = null; startJoy(f.x0, f.y0, true); }
+    }
+    if (fFloat !== null) { const f = fingers.get(fFloat); if (f) moveJoy(f.x, f.y); }
+  }, NOPASS);
+  const fingerEnd = e => {
+    e.preventDefault();
+    for (const t of e.changedTouches) {
+      const id = t.identifier;
+      if (id === fTap) { fTap = null; if (e.type === 'touchend') tapAt(t.clientX, t.clientY); }
+      if (id === fFloat) { fFloat = null; endJoy(); }
+      fingers.delete(id);
+    }
+    if (!fingers.size) fPinch = null;
+  };
+  cv.addEventListener('touchend', fingerEnd, NOPASS);
+  cv.addEventListener('touchcancel', fingerEnd, NOPASS);
+  // สลับแอป/ล็อกจอระหว่างลากนิ้ว: ปล่อยจอยทันที ตัวละครจะได้ไม่เดินเอง
+  const releaseAll = () => { fingers.clear(); fPinch = fTap = fFloat = null; if (joy.active) endJoy(); };
+  document.addEventListener('visibilitychange', () => { if (document.hidden) releaseAll(); });
+  window.addEventListener('blur', releaseAll);
+
   document.getElementById('act').addEventListener('click', () => { if (targets[0] && !UI.isOpen()) UI.interact(targets[0], Sim.P); });
+
+  // ---- คำแนะนำบนมือถือตอนเริ่มเล่น (หายเมื่อเริ่มเดิน)
+  let hintEl = null, hintT = 0, hintDone = !touch;
+  function hint(dt) {
+    if (hintDone || !Sim.S) return;
+    if (!hintEl) {
+      hintEl = document.createElement('div');
+      hintEl.id = 'hint';
+      hintEl.innerHTML = '👆 <b>ลากนิ้วบนจอ</b> เพื่อเดิน<br><small>แตะพื้น = เดินไปตรงนั้น · แตะคน/ป้าย = คุย/ตรวจ</small>';
+      document.body.appendChild(hintEl);
+    }
+    if (UI.isOpen()) return;
+    hintT += dt;
+    if ((Sim.P.moving && hintT > 1.2) || hintT > 14) {
+      hintDone = true;
+      const el = hintEl;
+      el.classList.add('fade');
+      setTimeout(() => el.remove(), 900);
+    }
+  }
 
   // จอยเกม (Gamepad API): ก้านซ้าย/ปุ่มทิศเดิน, A โต้ตอบ, B วิ่ง
   const padPrev = {};
@@ -453,6 +563,7 @@
       else targets = netOn() ? [Sim.findInteract(Sim.P)] : pls.map(pl => Sim.findInteract(pl));
     }
     if (window.Net) window.Net.tick(dt);
+    hint(dt);
     lastView = render(t, dt);
     hudT -= dt;
     if (hudT <= 0) { hudT = 0.2; UI.hud(); UI.prompt(targets); drawMini(lastView, Sim.S); }

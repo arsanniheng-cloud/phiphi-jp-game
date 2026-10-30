@@ -233,7 +233,16 @@ label.pn small { width: 92px; text-align: right; }
 #card.busy { opacity: .75; pointer-events: none; }
 #card.busy::after { content: "⏳ กำลังส่งให้เจ้าของห้อง…"; display: block; text-align: center; color: var(--muted); margin-top: 8px; }
 @media (max-width: 900px) { .modes { grid-template-columns: 1fr 1fr; } .mode.online { grid-column: 1 / -1; } }
-@media (max-width: 640px) { .modes { grid-template-columns: 1fr; } }
+@media (max-width: 640px) { .modes { grid-template-columns: minmax(0, 1fr); } }
+/* การ์ดเลือกโหมดต้องไม่กว้างเกินจอ: ช่องกรอกห้ามดันการ์ดให้ขยาย (จอมือถือ 360px + ตัวอักษรใหญ่) */
+.modes > * { min-width: 0; }
+.mode > * { max-width: 100%; }
+.mode small, .mode b { overflow-wrap: anywhere; }
+label.pn input, .mode.online .joinrow input { width: 0; }
+.mode.online .joinrow button { flex: none; }
+.modes.invited .mode.online { order: -1; }
+.mode.solo { border-color: rgba(255,176,32,.6); }
+.mode.solo .go { margin-top: 6px; align-self: stretch; text-align: center; background: var(--accent); color: var(--accent-ink); border-radius: 10px; padding: 9px 14px; font: 700 15px var(--font); }
 
 #flash { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(circle, rgba(255,40,40,0) 40%, rgba(255,40,40,.5)); opacity: 0; }
 #flash.on { animation: flash 1.2s ease-out; }
@@ -326,6 +335,19 @@ body.touch #act .ic { font-size: 28px; line-height: 1; }
 body.touch #act .tx { max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 body.touch #act.ready { opacity: 1; }
 body.touch #act:active { transform: scale(.94); }
+/* ปุ่ม/แถบบนจอเกม: ห้ามเบราว์เซอร์เอานิ้วไปเลื่อนหน้า */
+body.touch #hud, body.touch #side, body.touch #act, body.touch #joy { touch-action: none; }
+/* จอยลอย: ย้ายไปอยู่ใต้นิ้วตอนลากบนฉาก */
+body.touch #joy.floating { background: rgba(14,26,36,.28); border-color: rgba(255,255,255,.55); }
+/* คำแนะนำวิธีเดินตอนเริ่มเกม */
+#hint { display: none; }
+body.touch.playing #hint { display: block; position: fixed; left: 50%; bottom: calc(184px + env(safe-area-inset-bottom)); z-index: 5;
+  width: max-content; max-width: calc(100vw - 32px); transform: translateX(-50%); text-align: center; pointer-events: none;
+  background: rgba(14,26,36,.92); border: 2px solid var(--accent); border-radius: 14px; padding: 10px 16px; font-size: 15px; line-height: 1.45;
+  box-shadow: 0 8px 22px rgba(0,0,0,.4); animation: hintBob 1.6s ease-in-out infinite; transition: opacity .8s; }
+#hint small { color: var(--muted); font-size: 13px; }
+#hint.fade { opacity: 0; }
+@keyframes hintBob { 50% { transform: translateX(-50%) translateY(-5px); } }
 
 /* หน้าต่าง: เลื่อนขึ้นจากด้านล่าง ปุ่มใหญ่กดง่าย */
 body.touch #panel { align-items: flex-end; padding: 0; }
@@ -340,7 +362,6 @@ body.touch .head .x { font-size: 24px; padding: 2px 10px; }
 body.touch .bubble { font-size: 16px; }
 body.touch .actions.grid3 { grid-template-columns: repeat(2, 1fr); }
 body.touch .mem summary { padding: 6px 0; }
-body.touch .modes .mode.online { order: -1; }
 body.touch .mode .count button { min-height: 40px; min-width: 56px; }
 body.touch label.pn input, body.touch .mode.online .joinrow input { font-size: 16px; padding: 10px; }   /* 16px: iPhone ไม่ซูมหน้าเอง */
 body.touch .mode.online .joinrow button { min-height: 46px; }

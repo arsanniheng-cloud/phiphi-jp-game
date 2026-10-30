@@ -380,7 +380,7 @@
   }
   const HELP =
     '<ul class="help">' +
-    '<li><b>เดิน</b> W A S D / ปุ่มลูกศร (กด Shift วิ่ง) หรือคลิกที่พื้นเพื่อเดินไป · มือถือใช้จอยซ้ายล่าง</li>' +
+    '<li><b>เดิน</b> W A S D / ปุ่มลูกศร (กด Shift วิ่ง) หรือคลิกที่พื้นเพื่อเดินไป · <b>มือถือ</b> ลากนิ้วตรงไหนก็ได้บนจอ (หรือจอยซ้ายล่าง) แล้วตัวละครจะเดินตาม แตะพื้นเพื่อเดินไปตรงนั้น</li>' +
     '<li><b>โต้ตอบ</b> เข้าใกล้แล้วกด <kbd>E</kbd> หรือคลิกที่ตัวละคร/ป้ายอันตราย</li>' +
     '<li><b>จุดเสี่ยง</b> ซ่อนอยู่จนกว่าคุณเดินไปเห็นเอง หรือมีพนักงานที่ไว้ใจคุณมาแจ้ง · วงสีขาวรอบป้ายคือเวลาก่อนเกิดเหตุ</li>' +
     '<li><b>ตัดสินใจ</b> หยุดงาน / คุยสอน / ออก CAR / ปล่อยไว้ แต่ละแบบเหมาะกับปัญหาต่างกัน ระบบจะบอกเหตุผลทุกครั้ง</li>' +
@@ -403,8 +403,8 @@
       '<p class="lead">คุณคือ <b>จป.วิชาชีพ</b> ของรีสอร์ตริมอ่าวบนเกาะพีพี ดูแลพนักงาน <b>204 คน</b> 12 แผนก และแขกที่หมุนเวียนตามฤดูกาล ' +
       'ทุกคนมีชื่อ มีเรื่องราว และ<b>จำได้</b>ว่าคุณเคยทำอะไรกับเขา</p>' +
       (autoRec ? '<div class="actions"><button data-act="intro:continue" class="primary">▶️ เล่นต่อจากที่บันทึกไว้ (วันที่ ' + (autoRec.day + 1) + (autoRec.players > 1 ? ' · ' + autoRec.players + ' คน' : '') + ')</button></div>' : '') +
-      '<div class="modes">' +
-      '<button data-act="intro:solo" class="mode"><span class="ic">👤</span><b>เล่นคนเดียว</b><small>เดินตรวจรีสอร์ตด้วยตัวเอง</small></button>' +
+      '<div class="modes' + (invite ? ' invited' : '') + '">' +
+      '<button data-act="intro:solo" class="mode solo"><span class="ic">👤</span><b>เล่นคนเดียว</b><small>เดินตรวจรีสอร์ตด้วยตัวเอง</small><span class="go">▶️ เริ่มเล่นเลย</span></button>' +
       '<div class="mode coop"><span class="ic">👥</span><b>เล่นกับเพื่อน</b><small>เครื่องเดียวกัน ช่วยกันดูแลเกาะ</small>' +
       '<div class="count">จำนวนผู้เล่น ' + [2, 3, 4].map(k => '<button data-act="cnt:' + k + '" class="' + (k === coopCount ? 'on' : '') + '">' + k + ' คน</button>').join('') + '</div>' +
       [1, 2, 3, 4].map(k => '<label class="pn" data-k="' + k + '"' + (k > coopCount ? ' hidden' : '') + '><span class="pl p' + k + '">P' + k + '</span> ' +
@@ -417,8 +417,7 @@
       '<div class="joinrow"><input id="ocode" maxlength="7" placeholder="รหัสห้อง 6 ตัว" autocomplete="off" autocapitalize="characters" value="' + esc(invite) + '"><button data-act="online:join"' + (invite ? ' class="primary"' : '') + '>เข้าร่วม</button></div>' +
       '<p id="onstatus" class="muted"></p></div></div>' +
       '<details class="helpbox"' + (touch ? '' : ' open') + '><summary>❓ วิธีเล่น</summary>' + HELP + '</details>' +
-      '<p class="muted">ตัวละครและรีสอร์ตในเกมเป็นเรื่องสมมติ ผังรีสอร์ตอิงลักษณะอ่าวบนเกาะพีพี ไม่ใช่ผังจริง · ' +
-      'การเล่นกับเพื่อนต่างเครื่องผ่านอินเทอร์เน็ตต้องมีเซิร์ฟเวอร์ (ยังไม่มีในเวอร์ชันนี้)</p></div>', { locked: true, wide: true });
+      '<p class="muted">ตัวละครและรีสอร์ตในเกมเป็นเรื่องสมมติ ผังรีสอร์ตอิงลักษณะอ่าวบนเกาะพีพี ไม่ใช่ผังจริง</p></div>', { locked: true, wide: true });
   }
 
   // ------------------------------------------------------------------ online
